@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useRouter } from "next/router";
 import {
   Box,
   Button,
@@ -24,18 +25,30 @@ export default function Home() {
   const [name, setName] = useState("");
   const [repo, setRepo] = useState("");
   const [stack, setStack] = useState("");
+  const router = useRouter();
 
   useEffect(() => {
-    fetch("http://localhost:8000/projects")
+    const token = localStorage.getItem("token");
+    if (!token) {
+      router.push("/login");
+      return;
+    }
+    fetch("http://localhost:8000/projects", {
+      headers: { Authorization: `Bearer ${token}` },
+    })
       .then((res) => res.json())
       .then(setProjects)
       .catch(() => setProjects([]));
-  }, []);
+  }, [router]);
 
   const addProject = async () => {
+    const token = localStorage.getItem("token");
     const res = await fetch("http://localhost:8000/projects", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
       body: JSON.stringify({ name, repo, stack }),
     });
     if (res.ok) {
