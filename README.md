@@ -12,6 +12,7 @@ Prototype backend and frontend for A-WEB Studio.
 ## Development
 
 Copy `.env.example` to `.env` and adjust as needed.
+Set the `REDIS_URL` environment variable to point to your Redis instance for the backend and worker.
 
 Bring up the app with Docker Compose:
 

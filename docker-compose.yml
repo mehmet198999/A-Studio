@@ -31,7 +31,7 @@ services:
       - "8000:8000"
     environment:
       - DATABASE_URL=postgresql+psycopg2://postgres:postgres@postgres/postgres
-      - REDIS_URL=redis://redis:6379/0
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
       - API_TOKEN=${API_TOKEN:-secret-token}
     depends_on:
       - postgres
@@ -70,7 +70,7 @@ services:
     command: python -m app.worker
     environment:
       - DATABASE_URL=postgresql+psycopg2://postgres:postgres@postgres/postgres
-      - REDIS_URL=redis://redis:6379/0
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
     depends_on:
       - redis
       - postgres
