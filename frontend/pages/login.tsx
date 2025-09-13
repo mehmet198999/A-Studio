@@ -2,13 +2,15 @@ import { useState } from "react";
 import { useRouter } from "next/router";
 import { Box, Button, Flex, Heading, Input } from "@chakra-ui/react";
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
 export default function Login() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const router = useRouter();
 
   const handleLogin = async () => {
-    const res = await fetch("http://localhost:8000/token", {
+    const res = await fetch(`${API_URL}/token`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ username, password }),

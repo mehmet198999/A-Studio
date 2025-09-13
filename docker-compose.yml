@@ -31,14 +31,20 @@ services:
       - "8000:8000"
     environment:
       - DATABASE_URL=postgresql+psycopg2://postgres:postgres@postgres/postgres
+#<<<<<<< codex/use-redis.from_url-in-task-and-worker
       - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
       - API_TOKEN=${API_TOKEN:-secret-token}
+#=======
+      - REDIS_URL=redis://redis:6379/0
+      - AUTH_TOKEN=${AUTH_TOKEN:-secret-token}
+#>>>>>>> main
     depends_on:
       - postgres
       - redis
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.backend.rule=Host(`${BRANCH_NAME}.app.a-server.ch`) && PathPrefix(`/api`)"
+      - "traefik.http.routers.backend.entrypoints=web"
       - "traefik.http.services.backend.loadbalancer.server.port=8000"
     networks:
       - web
@@ -54,6 +60,7 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.frontend.rule=Host(`${BRANCH_NAME}.app.a-server.ch`)"
+      - "traefik.http.routers.frontend.entrypoints=web"
       - "traefik.http.services.frontend.loadbalancer.server.port=3000"
     networks:
       - web

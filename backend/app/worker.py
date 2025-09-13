@@ -42,7 +42,8 @@ def process_feature_job(prompt: str, type: str) -> str:
         logs.append(f"Committed {commit_hash}")
         push_branch(repo, branch_name)
         logs.append("Pushed branch")
-        entry["preview_url"] = f"https://{branch_name}.app.a-server.ch"
+        preview_domain = os.environ.get("PREVIEW_DOMAIN", "app.a-server.ch")
+        entry["preview_url"] = f"https://{branch_name}.{preview_domain}"
         entry["branch_url"] = f"https://example.com/{branch_name}"
     except Exception as e:
         logs.append(f"Error: {e}")
