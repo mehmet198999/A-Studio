@@ -1,20 +1,5 @@
-import { useEffect, useState } from "react";
-import { useRouter } from "next/router";
-import {
-  Box,
-  Button,
-  Flex,
-  Heading,
-  Input,
-  Link,
-  Select,
-  Table,
-  Tbody,
-  Td,
-  Th,
-  Thead,
-  Tr,
-} from "@chakra-ui/react";
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/router';
 
 interface Project {
   name: string;
@@ -33,17 +18,17 @@ interface Job {
   branch_url?: string;
 }
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 export default function Home() {
   const [projects, setProjects] = useState<Project[]>([]);
-  const [name, setName] = useState("");
-  const [repo, setRepo] = useState("");
-  const [stack, setStack] = useState("");
+  const [name, setName] = useState('');
+  const [repo, setRepo] = useState('');
+  const [stack, setStack] = useState('');
 
   const [jobs, setJobs] = useState<Job[]>([]);
-  const [prompt, setPrompt] = useState("");
-  const [type, setType] = useState("frontend");
+  const [prompt, setPrompt] = useState('');
+  const [type, setType] = useState('frontend');
   const router = useRouter();
 
   const fetchProjects = (token: string) => {
@@ -65,9 +50,9 @@ export default function Home() {
   };
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
+    const token = localStorage.getItem('token');
     if (!token) {
-      router.push("/login");
+      router.push('/login');
       return;
     }
     fetchProjects(token);
@@ -75,153 +60,168 @@ export default function Home() {
   }, [router]);
 
   const addProject = async () => {
-    const token = localStorage.getItem("token");
+    const token = localStorage.getItem('token');
     if (!token) return;
     const res = await fetch(`${API_URL}/projects`, {
-      method: "POST",
+      method: 'POST',
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
         Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify({ name, repo, stack }),
     });
     if (res.ok) {
-      setName("");
-      setRepo("");
-      setStack("");
+      setName('');
+      setRepo('');
+      setStack('');
       fetchProjects(token);
     }
   };
 
   const createJob = async () => {
-    const token = localStorage.getItem("token");
+    const token = localStorage.getItem('token');
     if (!token) return;
     const res = await fetch(`${API_URL}/jobs`, {
-      method: "POST",
+      method: 'POST',
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
         Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify({ prompt, type }),
     });
     if (res.ok) {
-      setPrompt("");
-      setType("frontend");
+      setPrompt('');
+      setType('frontend');
       fetchJobs(token);
     }
   };
 
   return (
-    <Box p={8}>
-      <Heading mb={4}>Projekte</Heading>
-      <Flex gap={2} mb={4} flexWrap="wrap">
-        <Input
+    <div className="p-8">
+      <h1 className="text-2xl mb-4">Projekte</h1>
+      <div className="flex flex-wrap gap-2 mb-4">
+        <input
+          className="border p-2"
           placeholder="Name"
           value={name}
           onChange={(e) => setName(e.target.value)}
         />
-        <Input
+        <input
+          className="border p-2"
           placeholder="Repo"
           value={repo}
           onChange={(e) => setRepo(e.target.value)}
         />
-        <Input
+        <input
+          className="border p-2"
           placeholder="Stack"
           value={stack}
           onChange={(e) => setStack(e.target.value)}
         />
-        <Button colorScheme="teal" onClick={addProject}>
+        <button
+          className="bg-teal-500 text-white px-4"
+          onClick={addProject}
+        >
           Projekt anlegen
-        </Button>
-      </Flex>
-      <Table variant="simple" mb={8}>
-        <Thead>
-          <Tr>
-            <Th>Name</Th>
-            <Th>Repo</Th>
-            <Th>Stack</Th>
-          </Tr>
-        </Thead>
-        <Tbody>
+        </button>
+      </div>
+      <table className="w-full table-auto mb-8 border">
+        <thead>
+          <tr className="bg-gray-100">
+            <th className="text-left p-2">Name</th>
+            <th className="text-left p-2">Repo</th>
+            <th className="text-left p-2">Stack</th>
+          </tr>
+        </thead>
+        <tbody>
           {projects.map((p) => (
-            <Tr key={p.name}>
-              <Td>{p.name}</Td>
-              <Td>{p.repo}</Td>
-              <Td>{p.stack}</Td>
-            </Tr>
+            <tr key={p.name}>
+              <td className="border p-2">{p.name}</td>
+              <td className="border p-2">{p.repo}</td>
+              <td className="border p-2">{p.stack}</td>
+            </tr>
           ))}
-        </Tbody>
-      </Table>
+        </tbody>
+      </table>
 
-      <Heading mb={4}>Jobs</Heading>
-      <Flex gap={2} mb={4} flexWrap="wrap">
-        <Input
+      <h1 className="text-2xl mb-4">Jobs</h1>
+      <div className="flex flex-wrap gap-2 mb-4">
+        <input
+          className="border p-2 flex-grow"
           placeholder="Prompt"
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
         />
-        <Select
-          width="auto"
+        <select
+          className="border p-2"
           value={type}
           onChange={(e) => setType(e.target.value)}
         >
           <option value="frontend">Frontend</option>
           <option value="backend">Backend</option>
           <option value="doku">Doku</option>
-        </Select>
-        <Button colorScheme="teal" onClick={createJob}>
+        </select>
+        <button
+          className="bg-teal-500 text-white px-4"
+          onClick={createJob}
+        >
           Generieren
-        </Button>
-      </Flex>
-      <Table variant="simple">
-        <Thead>
-          <Tr>
-            <Th>Prompt</Th>
-            <Th>Typ</Th>
-            <Th>Status</Th>
-            <Th>Score</Th>
-            <Th>Logs</Th>
-            <Th>Preview</Th>
-            <Th>Branch</Th>
-          </Tr>
-        </Thead>
-        <Tbody>
+        </button>
+      </div>
+      <table className="w-full table-auto border">
+        <thead>
+          <tr className="bg-gray-100">
+            <th className="text-left p-2">Prompt</th>
+            <th className="text-left p-2">Typ</th>
+            <th className="text-left p-2">Status</th>
+            <th className="text-left p-2">Score</th>
+            <th className="text-left p-2">Logs</th>
+            <th className="text-left p-2">Preview</th>
+            <th className="text-left p-2">Branch</th>
+          </tr>
+        </thead>
+        <tbody>
           {jobs.map((job) => (
-            <Tr key={job.id}>
-              <Td>{job.prompt}</Td>
-              <Td>{job.type}</Td>
-              <Td>{job.status}</Td>
-              <Td>{job.score ?? "-"}</Td>
-              <Td>{job.logs ? job.logs.join("\n") : "-"}</Td>
-              <Td>
+            <tr key={job.id}>
+              <td className="border p-2">{job.prompt}</td>
+              <td className="border p-2">{job.type}</td>
+              <td className="border p-2">{job.status}</td>
+              <td className="border p-2">{job.score ?? '-'}</td>
+              <td className="border p-2 whitespace-pre-wrap">
+                {job.logs ? job.logs.join('\n') : '-'}
+              </td>
+              <td className="border p-2">
                 {job.preview_url ? (
-                  <Button
-                    as="a"
+                  <a
+                    className="bg-teal-500 text-white px-2 py-1 inline-block"
                     href={job.preview_url}
-                    colorScheme="teal"
-                    size="sm"
                     target="_blank"
                     rel="noopener noreferrer"
                   >
                     Preview öffnen
-                  </Button>
+                  </a>
                 ) : (
-                  "-"
+                  '-'
                 )}
-              </Td>
-              <Td>
+              </td>
+              <td className="border p-2">
                 {job.branch_url ? (
-                  <Link href={job.branch_url} color="teal.500" isExternal>
+                  <a
+                    className="text-teal-600"
+                    href={job.branch_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
                     Branch ansehen
-                  </Link>
+                  </a>
                 ) : (
-                  "-"
+                  '-'
                 )}
-              </Td>
-            </Tr>
+              </td>
+            </tr>
           ))}
-        </Tbody>
-      </Table>
-    </Box>
+        </tbody>
+      </table>
+    </div>
   );
 }

@@ -31,13 +31,8 @@ services:
       - "8000:8000"
     environment:
       - DATABASE_URL=postgresql+psycopg2://postgres:postgres@postgres/postgres
-#<<<<<<< codex/use-redis.from_url-in-task-and-worker
       - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
-      - API_TOKEN=${API_TOKEN:-secret-token}
-#=======
-      - REDIS_URL=redis://redis:6379/0
       - AUTH_TOKEN=${AUTH_TOKEN:-secret-token}
-#>>>>>>> main
     depends_on:
       - postgres
       - redis
