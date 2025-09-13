@@ -1,7 +1,11 @@
 fastapi
 uvicorn
+#<<<<<<< codex/build-web-app-dashboard-for-a-web-studio-jz2x6n
 Jinja2
 httpx
 GitPython
 redis
 rq
+=======
+
+#>>>>>>> main

@@ -12,6 +12,7 @@ services:
       - NEXT_PUBLIC_BACKEND_URL=http://localhost:8000
     depends_on:
       - backend
+#<<<<<<< codex/build-web-app-dashboard-for-a-web-studio-jz2x6n
   redis:
     image: redis:7-alpine
     ports:
@@ -22,3 +23,5 @@ services:
     depends_on:
       - backend
       - redis
+#=======
+#>>>>>>> main
