@@ -1,7 +1,11 @@
+import os
+import sys
 from unittest.mock import patch
 from git import Repo
 
-from backend.app.tasks import run_dummy_job
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
+
+from backend.app.tasks import enqueue_feature_job, job_db, run_dummy_job
 
 
 def test_run_dummy_job_stores_url(tmp_path):
@@ -30,3 +34,22 @@ def test_run_dummy_job_stores_url(tmp_path):
 
     assert dummy_job.meta["url"] == f"https://{branch}.app.a-server.ch"
     assert branch in [h.name for h in remote_repo.heads]
+
+
+def test_enqueue_feature_job_records_job(monkeypatch):
+    class DummyJob:
+        def __init__(self):
+            self.id = "test-id"
+
+    def fake_enqueue(*args, **kwargs):
+        return DummyJob()
+
+    monkeypatch.setattr("backend.app.tasks.queue.enqueue", fake_enqueue)
+    job_id = enqueue_feature_job("Do something", "frontend")
+
+    assert job_id == "test-id"
+    assert job_id in job_db
+    assert job_db[job_id]["prompt"] == "Do something"
+    assert job_db[job_id]["type"] == "frontend"
+    assert job_db[job_id]["status"] == "queued"
+    job_db.clear()
