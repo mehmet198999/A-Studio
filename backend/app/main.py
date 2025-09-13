@@ -1,3 +1,5 @@
+from fastapi import FastAPI, Request
+
 
 import os
 from fastapi import Depends, FastAPI, Request
@@ -40,6 +42,7 @@ class Project(Base):
 
 Base.metadata.create_all(bind=engine)
 
+class Project(BaseModel):
 
 class ProjectSchema(BaseModel):
     name: str
@@ -75,20 +78,25 @@ class JobStatus(BaseModel):
 
 # In-memory store for demo purposes
 projects: list[Project] = []
-#=======
-#>>>>>>> main
+
 @app.get("/", response_class=HTMLResponse)
 async def read_root(request: Request, db: Session = Depends(get_db)):
     projects = db.query(Project).all()
     return templates.TemplateResponse("index.html", {"request": request, "projects": projects})
 
-#<<<<<<< codex/implement-enqueue_feature_job-function
-#=======
 
-#>>>>>>> main
 @app.get("/health")
 async def health_check() -> dict[str, str]:
     return {"status": "ok"}
+
+
+
+@app.post("/projects", response_model=Project)
+async def create_project(project: Project) -> Project:
+    projects.append(project)
+    return project
+
+
 
 
 #<<<<<<< codex/implement-enqueue_feature_job-function
