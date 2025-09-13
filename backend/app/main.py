@@ -1,7 +1,4 @@
-from fastapi import FastAPI
-from pydantic import BaseModel
 
-app = FastAPI()
 
 class Project(BaseModel):
     name: str
@@ -10,6 +7,7 @@ class Project(BaseModel):
 
 # In-memory store for demo purposes
 projects: list[Project] = []
+
 
 @app.get("/health")
 async def health_check() -> dict[str, str]:
