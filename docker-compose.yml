@@ -12,3 +12,16 @@ services:
       - NEXT_PUBLIC_BACKEND_URL=http://localhost:8000
     depends_on:
       - backend
+#<<<<<<< codex/build-web-app-dashboard-for-a-web-studio-jz2x6n
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+  worker:
+    build: ./backend
+    command: python -m app.worker
+    depends_on:
+      - backend
+      - redis
+#=======
+#>>>>>>> main
