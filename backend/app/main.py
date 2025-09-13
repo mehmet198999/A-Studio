@@ -5,7 +5,7 @@ from fastapi import Depends, FastAPI, Header, HTTPException, Request, status
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, ConfigDict
-from sqlalchemy import Column, Integer, String, create_engine
+from sqlalchemy import Column, Integer, String, create_engine, select
 from sqlalchemy.orm import Session, declarative_base, sessionmaker
 from sqlalchemy.pool import StaticPool
 
@@ -111,13 +111,13 @@ async def create_project(project: ProjectSchema, db: Session = Depends(get_db)) 
 
 @app.get("/projects", response_model=List[ProjectSchema], dependencies=[Depends(verify_token)])
 async def list_projects(db: Session = Depends(get_db)) -> List[ProjectSchema]:
-    projects = db.query(Project).all()
+    projects = db.execute(select(Project)).scalars().all()
     return [ProjectSchema.model_validate(p) for p in projects]
 
 
 @app.get("/projects/{project_id}", response_model=ProjectSchema, dependencies=[Depends(verify_token)])
 async def get_project(project_id: int, db: Session = Depends(get_db)) -> ProjectSchema:
-    project = db.query(Project).get(project_id)
+    project = db.get(Project, project_id)
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
     return ProjectSchema.model_validate(project)
@@ -125,7 +125,7 @@ async def get_project(project_id: int, db: Session = Depends(get_db)) -> Project
 
 @app.put("/projects/{project_id}", response_model=ProjectSchema, dependencies=[Depends(verify_token)])
 async def update_project(project_id: int, data: ProjectSchema, db: Session = Depends(get_db)) -> ProjectSchema:
-    project = db.query(Project).get(project_id)
+    project = db.get(Project, project_id)
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
     for field, value in data.model_dump(exclude_unset=True, exclude={"id"}).items():
@@ -137,7 +137,7 @@ async def update_project(project_id: int, data: ProjectSchema, db: Session = Dep
 
 @app.delete("/projects/{project_id}", dependencies=[Depends(verify_token)])
 async def delete_project(project_id: int, db: Session = Depends(get_db)) -> dict[str, str]:
-    project = db.query(Project).get(project_id)
+    project = db.get(Project, project_id)
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
     db.delete(project)
@@ -166,7 +166,7 @@ async def get_job_status(job_id: str) -> JobStatus:
 
 @app.get("/", response_class=HTMLResponse)
 async def read_root(request: Request, db: Session = Depends(get_db)):
-    projects = db.query(Project).all()
+    projects = db.execute(select(Project)).scalars().all()
     return templates.TemplateResponse("index.html", {"request": request, "projects": projects})
 
 
