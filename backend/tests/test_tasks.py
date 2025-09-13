@@ -4,6 +4,7 @@ from unittest.mock import patch
 from git import Repo
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
+os.environ["REDIS_URL"] = "redis://localhost:6379/0"
 
 from backend.app.tasks import enqueue_feature_job, job_db, run_dummy_job
 

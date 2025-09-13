@@ -7,6 +7,7 @@ from fastapi.testclient import TestClient
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 os.environ["DATABASE_URL"] = "sqlite://"
 os.environ["AUTH_TOKEN"] = "test-token"
+os.environ["REDIS_URL"] = "redis://localhost:6379/0"
 
 from backend.app.main import Base, SessionLocal, app, engine, get_db  # noqa: E402
 
@@ -85,4 +86,4 @@ def test_job_endpoints(client):
     assert any(job["id"] == job_id for job in list_res.json())
     status_res = client.get(f"/jobs/{job_id}", headers=headers)
     assert status_res.status_code == 200
-    assert status_res.json()["status"] in {"queued", "started", "finished"}
+    assert status_res.json()["status"] in {"queued", "running", "done", "failed"}

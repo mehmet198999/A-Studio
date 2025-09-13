@@ -19,17 +19,24 @@ def process_feature_job(prompt: str, type: str) -> str:
         {
             "prompt": prompt,
             "type": type,
-            "status": "started",
+            "status": "queued",
             "logs": [],
             "score": None,
             "preview_url": None,
             "branch_url": None,
         },
     )
-    entry["status"] = "started"
+    entry["status"] = "running"
     logs = entry["logs"]
 
-    model = {"frontend": "Frontend", "backend": "Backend", "doku": "Doku"}.get(type.lower(), "Frontend")
+    model = {
+        "qwen": "Qwen",
+        "deepseek": "DeepSeek",
+        "llama": "Llama",
+        "frontend": "Qwen",
+        "backend": "DeepSeek",
+        "doku": "Llama",
+    }.get(type.lower(), "Qwen")
     logs.append(f"Selected model {model}")
 
     tmpdir = tempfile.mkdtemp()
@@ -42,13 +49,16 @@ def process_feature_job(prompt: str, type: str) -> str:
         logs.append(f"Committed {commit_hash}")
         push_branch(repo, branch_name)
         logs.append("Pushed branch")
+        entry["score"] = len(prompt)
         preview_domain = os.environ.get("PREVIEW_DOMAIN", "app.a-server.ch")
         entry["preview_url"] = f"https://{branch_name}.{preview_domain}"
         entry["branch_url"] = f"https://example.com/{branch_name}"
-    except Exception as e:
+        entry["status"] = "done"
+        return commit_hash
+    except Exception as e:  # pragma: no cover - exercised via integration
         logs.append(f"Error: {e}")
-    entry["status"] = "finished"
-    return commit_hash if "commit_hash" in locals() else ""
+        entry["status"] = "failed"
+        return ""
 
 
 def run_worker() -> None:
