@@ -8,7 +8,7 @@ import uuid
 
 from .git_utils import create_branch, commit_all, push_branch
 
-redis_conn = Redis.from_url(os.environ.get("REDIS_URL", "redis://localhost:6379/0"))
+redis_conn = Redis.from_url(os.environ["REDIS_URL"])
 queue = Queue(connection=redis_conn)
 
 # simple in-memory store for job status and logs

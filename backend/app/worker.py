@@ -52,7 +52,7 @@ def process_feature_job(prompt: str, type: str) -> str:
 
 
 def run_worker() -> None:
-    redis_conn = Redis.from_url(os.environ.get("REDIS_URL", "redis://localhost:6379/0"))
+    redis_conn = Redis.from_url(os.environ["REDIS_URL"])
     with Connection(redis_conn):
         worker = Worker(list(map(Queue, listen)))
         worker.work()
