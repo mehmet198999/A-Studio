@@ -14,10 +14,28 @@ services:
     networks:
       - web
 
+  postgres:
+    image: postgres:16
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=postgres
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - web
+
   backend:
     build: ./backend
     ports:
       - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql+psycopg2://postgres:postgres@postgres/postgres
+      - REDIS_URL=redis://redis:6379/0
+      - API_TOKEN=${API_TOKEN:-secret-token}
+    depends_on:
+      - postgres
+      - redis
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.backend.rule=Host(`${BRANCH_NAME}.app.a-server.ch`) && PathPrefix(`/api`)"
@@ -30,7 +48,7 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - NEXT_PUBLIC_BACKEND_URL=http://localhost:8000
+      - NEXT_PUBLIC_API_URL=http://backend:8000
     depends_on:
       - backend
     labels:
@@ -50,12 +68,18 @@ services:
   worker:
     build: ./backend
     command: python -m app.worker
+    environment:
+      - DATABASE_URL=postgresql+psycopg2://postgres:postgres@postgres/postgres
+      - REDIS_URL=redis://redis:6379/0
     depends_on:
-      - backend
       - redis
+      - postgres
     networks:
       - web
 
 networks:
   web:
     driver: bridge
+
+volumes:
+  postgres_data:
