@@ -195,9 +195,16 @@ export default function Home() {
               <Td>{job.logs ? job.logs.join("\n") : "-"}</Td>
               <Td>
                 {job.preview_url ? (
-                  <Link href={job.preview_url} color="teal.500" isExternal>
+                  <Button
+                    as="a"
+                    href={job.preview_url}
+                    colorScheme="teal"
+                    size="sm"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
                     Preview öffnen
-                  </Link>
+                  </Button>
                 ) : (
                   "-"
                 )}
