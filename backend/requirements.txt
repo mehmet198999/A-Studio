@@ -1,0 +1,7 @@
+fastapi
+uvicorn
+Jinja2
+httpx
+GitPython
+redis
+rq
