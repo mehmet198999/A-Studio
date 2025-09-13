@@ -1,46 +1,50 @@
-import { useState } from "react";
-import { useRouter } from "next/router";
-import { Box, Button, Flex, Heading, Input } from "@chakra-ui/react";
+import { useState } from 'react';
+import { useRouter } from 'next/router';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 export default function Login() {
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
   const router = useRouter();
 
   const handleLogin = async () => {
     const res = await fetch(`${API_URL}/token`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username, password }),
     });
     if (res.ok) {
       const data = await res.json();
-      localStorage.setItem("token", data.access_token);
-      router.push("/");
+      localStorage.setItem('token', data.access_token);
+      router.push('/');
     }
   };
 
   return (
-    <Box p={8}>
-      <Heading mb={4}>Login</Heading>
-      <Flex direction="column" gap={2} maxW="sm">
-        <Input
+    <div className="p-8 max-w-sm mx-auto">
+      <h1 className="text-2xl mb-4">Login</h1>
+      <div className="flex flex-col gap-2">
+        <input
+          className="border p-2"
           placeholder="Username"
           value={username}
           onChange={(e) => setUsername(e.target.value)}
         />
-        <Input
-          placeholder="Password"
+        <input
+          className="border p-2"
           type="password"
+          placeholder="Password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
         />
-        <Button colorScheme="teal" onClick={handleLogin}>
+        <button
+          className="bg-teal-500 text-white py-2"
+          onClick={handleLogin}
+        >
           Login
-        </Button>
-      </Flex>
-    </Box>
+        </button>
+      </div>
+    </div>
   );
 }
