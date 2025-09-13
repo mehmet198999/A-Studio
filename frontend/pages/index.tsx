@@ -5,6 +5,8 @@ import {
   Flex,
   Heading,
   Input,
+  Link,
+  Select,
   Table,
   Tbody,
   Td,
@@ -13,77 +15,105 @@ import {
   Tr,
 } from "@chakra-ui/react";
 
-interface Project {
-  name: string;
-  repo: string;
-  stack: string;
+interface Job {
+  id: string;
+  prompt: string;
+  type: string;
+  status: string;
+  score?: number;
+  preview_url?: string;
+  branch_url?: string;
 }
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
 export default function Home() {
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [name, setName] = useState("");
-  const [repo, setRepo] = useState("");
-  const [stack, setStack] = useState("");
+  const [jobs, setJobs] = useState<Job[]>([]);
+  const [prompt, setPrompt] = useState("");
+  const [type, setType] = useState("frontend");
+
+  const fetchJobs = () => {
+    fetch(`${API_URL}/jobs`)
+      .then((res) => res.json())
+      .then(setJobs)
+      .catch(() => setJobs([]));
+  };
 
   useEffect(() => {
-    fetch("http://localhost:8000/projects")
-      .then((res) => res.json())
-      .then(setProjects)
-      .catch(() => setProjects([]));
+    fetchJobs();
   }, []);
 
-  const addProject = async () => {
-    const res = await fetch("http://localhost:8000/projects", {
+  const createJob = async () => {
+    const res = await fetch(`${API_URL}/jobs`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, repo, stack }),
+      body: JSON.stringify({ prompt, type }),
     });
     if (res.ok) {
-      const project = await res.json();
-      setProjects((p) => [...p, project]);
-      setName("");
-      setRepo("");
-      setStack("");
+      setPrompt("");
+      setType("frontend");
+      fetchJobs();
     }
   };
 
   return (
     <Box p={8}>
-      <Heading mb={4}>A-WEB Studio Projects</Heading>
+      <Heading mb={4}>Jobs</Heading>
       <Flex gap={2} mb={4} flexWrap="wrap">
         <Input
-          placeholder="Name"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
+          placeholder="Prompt"
+          value={prompt}
+          onChange={(e) => setPrompt(e.target.value)}
         />
-        <Input
-          placeholder="Repo URL"
-          value={repo}
-          onChange={(e) => setRepo(e.target.value)}
-        />
-        <Input
-          placeholder="Stack"
-          value={stack}
-          onChange={(e) => setStack(e.target.value)}
-        />
-        <Button colorScheme="teal" onClick={addProject}>
-          Add
+        <Select
+          width="auto"
+          value={type}
+          onChange={(e) => setType(e.target.value)}
+        >
+          <option value="frontend">Frontend</option>
+          <option value="backend">Backend</option>
+          <option value="doku">Doku</option>
+        </Select>
+        <Button colorScheme="teal" onClick={createJob}>
+          Generieren
         </Button>
       </Flex>
       <Table variant="simple">
         <Thead>
           <Tr>
-            <Th>Name</Th>
-            <Th>Repo</Th>
-            <Th>Stack</Th>
+            <Th>Prompt</Th>
+            <Th>Typ</Th>
+            <Th>Status</Th>
+            <Th>Score</Th>
+            <Th>Preview</Th>
+            <Th>Branch</Th>
           </Tr>
         </Thead>
         <Tbody>
-          {projects.map((p, i) => (
-            <Tr key={i}>
-              <Td>{p.name}</Td>
-              <Td>{p.repo}</Td>
-              <Td>{p.stack}</Td>
+          {jobs.map((job) => (
+            <Tr key={job.id}>
+              <Td>{job.prompt}</Td>
+              <Td>{job.type}</Td>
+              <Td>{job.status}</Td>
+              <Td>{job.score ?? "-"}</Td>
+              <Td>
+                {job.preview_url ? (
+                  <Link href={job.preview_url} color="teal.500" isExternal>
+                    Preview
+                  </Link>
+                ) : (
+                  "-"
+                )}
+              </Td>
+              <Td>
+                {job.branch_url ? (
+                  <Link href={job.branch_url} color="teal.500" isExternal>
+                    Branch
+                  </Link>
+                ) : (
+                  "-"
+                )}
+              </Td>
             </Tr>
           ))}
         </Tbody>
@@ -91,3 +121,4 @@ export default function Home() {
     </Box>
   );
 }
+
