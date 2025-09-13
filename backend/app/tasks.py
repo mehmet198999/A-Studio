@@ -1,6 +1,6 @@
 import tempfile
 from pathlib import Path
-from rq import Queue
+from rq import Queue, get_current_job
 from redis import Redis
 from git import Repo
 
@@ -19,4 +19,9 @@ def run_dummy_job(repo_url: str, branch_name: str) -> str:
     Path(tmpdir, 'dummy.txt').write_text('hello')
     commit_hash = commit_all(repo, 'Add dummy file')
     push_branch(repo, branch_name)
+    url = f"https://{branch_name}.app.a-server.ch"
+    job = get_current_job()
+    if job is not None:
+        job.meta['url'] = url
+        job.save_meta()
     return commit_hash
