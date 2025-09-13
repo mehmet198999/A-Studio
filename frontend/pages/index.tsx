@@ -16,12 +16,19 @@ import {
   Tr,
 } from "@chakra-ui/react";
 
+interface Project {
+  name: string;
+  repo: string;
+  stack: string;
+}
+
 interface Job {
   id: string;
   prompt: string;
   type: string;
   status: string;
   score?: number;
+  logs?: string[];
   preview_url?: string;
   branch_url?: string;
 }
@@ -29,12 +36,33 @@ interface Job {
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 export default function Home() {
-#<<<<<<< codex/add-fastapi-dependency-for-token-check
   const [projects, setProjects] = useState<Project[]>([]);
   const [name, setName] = useState("");
   const [repo, setRepo] = useState("");
   const [stack, setStack] = useState("");
+
+  const [jobs, setJobs] = useState<Job[]>([]);
+  const [prompt, setPrompt] = useState("");
+  const [type, setType] = useState("frontend");
   const router = useRouter();
+
+  const fetchProjects = (token: string) => {
+    fetch(`${API_URL}/projects`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((res) => res.json())
+      .then(setProjects)
+      .catch(() => setProjects([]));
+  };
+
+  const fetchJobs = (token: string) => {
+    fetch(`${API_URL}/jobs`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((res) => res.json())
+      .then(setJobs)
+      .catch(() => setJobs([]));
+  };
 
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -42,55 +70,89 @@ export default function Home() {
       router.push("/login");
       return;
     }
-    fetch("http://localhost:8000/projects", {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((res) => res.json())
-      .then(setProjects)
-      .catch(() => setProjects([]));
+    fetchProjects(token);
+    fetchJobs(token);
   }, [router]);
 
   const addProject = async () => {
     const token = localStorage.getItem("token");
-    const res = await fetch("http://localhost:8000/projects", {
+    if (!token) return;
+    const res = await fetch(`${API_URL}/projects`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify({ name, repo, stack }),
-=======
-  const [jobs, setJobs] = useState<Job[]>([]);
-  const [prompt, setPrompt] = useState("");
-  const [type, setType] = useState("frontend");
-
-  const fetchJobs = () => {
-    fetch(`${API_URL}/jobs`)
-      .then((res) => res.json())
-      .then(setJobs)
-      .catch(() => setJobs([]));
+    });
+    if (res.ok) {
+      setName("");
+      setRepo("");
+      setStack("");
+      fetchProjects(token);
+    }
   };
 
-  useEffect(() => {
-    fetchJobs();
-  }, []);
-
   const createJob = async () => {
+    const token = localStorage.getItem("token");
+    if (!token) return;
     const res = await fetch(`${API_URL}/jobs`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
       body: JSON.stringify({ prompt, type }),
-#>>>>>>> main
     });
     if (res.ok) {
       setPrompt("");
       setType("frontend");
-      fetchJobs();
+      fetchJobs(token);
     }
   };
 
   return (
     <Box p={8}>
+      <Heading mb={4}>Projekte</Heading>
+      <Flex gap={2} mb={4} flexWrap="wrap">
+        <Input
+          placeholder="Name"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+        />
+        <Input
+          placeholder="Repo"
+          value={repo}
+          onChange={(e) => setRepo(e.target.value)}
+        />
+        <Input
+          placeholder="Stack"
+          value={stack}
+          onChange={(e) => setStack(e.target.value)}
+        />
+        <Button colorScheme="teal" onClick={addProject}>
+          Projekt anlegen
+        </Button>
+      </Flex>
+      <Table variant="simple" mb={8}>
+        <Thead>
+          <Tr>
+            <Th>Name</Th>
+            <Th>Repo</Th>
+            <Th>Stack</Th>
+          </Tr>
+        </Thead>
+        <Tbody>
+          {projects.map((p) => (
+            <Tr key={p.name}>
+              <Td>{p.name}</Td>
+              <Td>{p.repo}</Td>
+              <Td>{p.stack}</Td>
+            </Tr>
+          ))}
+        </Tbody>
+      </Table>
+
       <Heading mb={4}>Jobs</Heading>
       <Flex gap={2} mb={4} flexWrap="wrap">
         <Input
@@ -118,6 +180,7 @@ export default function Home() {
             <Th>Typ</Th>
             <Th>Status</Th>
             <Th>Score</Th>
+            <Th>Logs</Th>
             <Th>Preview</Th>
             <Th>Branch</Th>
           </Tr>
@@ -129,10 +192,11 @@ export default function Home() {
               <Td>{job.type}</Td>
               <Td>{job.status}</Td>
               <Td>{job.score ?? "-"}</Td>
+              <Td>{job.logs ? job.logs.join("\n") : "-"}</Td>
               <Td>
                 {job.preview_url ? (
                   <Link href={job.preview_url} color="teal.500" isExternal>
-                    Preview
+                    Preview öffnen
                   </Link>
                 ) : (
                   "-"
@@ -141,7 +205,7 @@ export default function Home() {
               <Td>
                 {job.branch_url ? (
                   <Link href={job.branch_url} color="teal.500" isExternal>
-                    Branch
+                    Branch ansehen
                   </Link>
                 ) : (
                   "-"
@@ -154,4 +218,3 @@ export default function Home() {
     </Box>
   );
 }
-
