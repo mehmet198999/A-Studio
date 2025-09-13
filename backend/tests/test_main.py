@@ -54,3 +54,15 @@ def test_project_crud(client):
     assert list_res.status_code == 200
     assert project in list_res.json()
 
+#<<<<<<< codex/implement-enqueue_feature_job-function
+
+def test_job_endpoints():
+    req = {"prompt": "Add feature", "type": "qwen"}
+    res = client.post("/jobs", json=req)
+    assert res.status_code == 200
+    job_id = res.json()["job_id"]
+    status_res = client.get(f"/jobs/{job_id}")
+    assert status_res.status_code == 200
+    assert status_res.json()["status"] == "queued"
+#=======
+#>>>>>>> main

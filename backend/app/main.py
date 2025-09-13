@@ -21,6 +21,13 @@ engine = create_engine(DATABASE_URL, connect_args=connect_args, **engine_kwargs)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
+#<<<<<<< codex/implement-enqueue_feature_job-function
+from .tasks import enqueue_feature_job, job_db
+
+app = FastAPI()
+templates = Jinja2Templates(directory="backend/app/templates")
+#=======
+#>>>>>>> main
 
 class Project(Base):
     __tablename__ = "projects"
@@ -39,6 +46,8 @@ class ProjectSchema(BaseModel):
     repo: str
     stack: str
 
+#<<<<<<< codex/implement-enqueue_feature_job-function
+#=======
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -52,19 +61,55 @@ def get_db() -> Session:
         yield db
     finally:
         db.close()
+#>>>>>>> main
 
+class FeatureRequest(BaseModel):
+    prompt: str
+    type: str
 
+#<<<<<<< codex/implement-enqueue_feature_job-function
+
+class JobStatus(BaseModel):
+    status: str
+    logs: list[str]
+
+# In-memory store for demo purposes
+projects: list[Project] = []
+#=======
+#>>>>>>> main
 @app.get("/", response_class=HTMLResponse)
 async def read_root(request: Request, db: Session = Depends(get_db)):
     projects = db.query(Project).all()
     return templates.TemplateResponse("index.html", {"request": request, "projects": projects})
 
+#<<<<<<< codex/implement-enqueue_feature_job-function
+#=======
 
+#>>>>>>> main
 @app.get("/health")
 async def health_check() -> dict[str, str]:
     return {"status": "ok"}
 
 
+#<<<<<<< codex/implement-enqueue_feature_job-function
+@app.get("/projects", response_model=list[Project])
+async def list_projects() -> list[Project]:
+    return projects
+
+
+@app.post("/jobs")
+async def start_job(req: FeatureRequest) -> dict[str, str]:
+    job_id = enqueue_feature_job(req.prompt, req.type)
+    return {"job_id": job_id}
+
+
+@app.get("/jobs/{job_id}", response_model=JobStatus)
+async def get_job_status(job_id: str) -> JobStatus:
+    data = job_db.get(job_id)
+    if not data:
+        return JobStatus(status="not_found", logs=[])
+    return JobStatus(**data)
+#=======
 @app.post("/projects", response_model=ProjectSchema)
 async def create_project(project: ProjectSchema, db: Session = Depends(get_db)) -> ProjectSchema:
     db_project = Project(**project.model_dump())
@@ -78,3 +123,4 @@ async def create_project(project: ProjectSchema, db: Session = Depends(get_db)) 
 async def list_projects(db: Session = Depends(get_db)) -> list[ProjectSchema]:
     projects = db.query(Project).all()
     return [ProjectSchema.model_validate(p) for p in projects]
+#>>>>>>> main
