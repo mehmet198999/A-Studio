@@ -69,13 +69,16 @@ class LoginRequest(BaseModel):
     password: str
 
 
-API_TOKEN = os.environ.get("API_TOKEN", "secret-token")
+AUTH_TOKEN = os.environ.get("AUTH_TOKEN", "secret-token")
 
 
 def verify_token(authorization: str | None = Header(default=None)) -> None:
-    expected = f"Bearer {API_TOKEN}"
+    expected = f"Bearer {AUTH_TOKEN}"
     if authorization != expected:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or missing token")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or missing token",
+        )
 
 
 app = FastAPI()
@@ -93,7 +96,7 @@ def get_db() -> Generator[Session, None, None]:
 @app.post("/token")
 async def login(data: LoginRequest) -> dict[str, str]:
     if data.username == "admin" and data.password == "secret":
-        return {"access_token": API_TOKEN}
+        return {"access_token": AUTH_TOKEN}
     raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
 
 

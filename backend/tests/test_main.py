@@ -6,6 +6,7 @@ from fastapi.testclient import TestClient
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 os.environ["DATABASE_URL"] = "sqlite://"
+os.environ["AUTH_TOKEN"] = "test-token"
 
 from backend.app.main import Base, SessionLocal, app, engine, get_db  # noqa: E402
 
@@ -54,6 +55,11 @@ def test_health(client):
 
 def test_project_requires_auth(client):
     response = client.get("/projects")
+    assert response.status_code == 401
+
+
+def test_jobs_require_auth(client):
+    response = client.get("/jobs")
     assert response.status_code == 401
 
 
