@@ -1,6 +1,10 @@
+import os
+import sys
 from pathlib import Path
+
 from git import Repo
 
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 from backend.app.git_utils import create_branch, commit_all, push_branch
 
 
