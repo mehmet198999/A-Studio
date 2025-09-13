@@ -7,8 +7,10 @@ services:
       - --providers.docker.exposedbydefault=false
       - --providers.docker.network=web
       - --entrypoints.web.address=:80
+      - --entrypoints.websecure.address=:443
     ports:
-      - "8081:80"
+      - "8080:80"
+      - "8443:443"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     networks:
@@ -39,7 +41,8 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.backend.rule=Host(`${BRANCH_NAME}.app.a-server.ch`) && PathPrefix(`/api`)"
-      - "traefik.http.routers.backend.entrypoints=web"
+      - "traefik.http.routers.backend.entrypoints=web,websecure"
+      - "traefik.http.routers.backend.tls=true"
       - "traefik.http.services.backend.loadbalancer.server.port=8000"
     networks:
       - web
@@ -55,7 +58,8 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.frontend.rule=Host(`${BRANCH_NAME}.app.a-server.ch`)"
-      - "traefik.http.routers.frontend.entrypoints=web"
+      - "traefik.http.routers.frontend.entrypoints=web,websecure"
+      - "traefik.http.routers.frontend.tls=true"
       - "traefik.http.services.frontend.loadbalancer.server.port=3000"
     networks:
       - web
