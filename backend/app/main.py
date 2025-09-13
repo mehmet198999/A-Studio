@@ -1,8 +1,20 @@
+#<<<<<<< codex/add-fastapi-dependency-for-token-check
+
+from fastapi import (
+    Depends,
+    FastAPI,
+    Header,
+    HTTPException,
+    Request,
+    status,
+)
+=======
 from fastapi import FastAPI, Request
 
 
 import os
 from fastapi import Depends, FastAPI, Request
+#>>>>>>> main
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, ConfigDict
@@ -49,6 +61,12 @@ class ProjectSchema(BaseModel):
     repo: str
     stack: str
 
+#<<<<<<< codex/add-fastapi-dependency-for-token-check
+
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+=======
 #<<<<<<< codex/implement-enqueue_feature_job-function
 #=======
     model_config = ConfigDict(from_attributes=True)
@@ -75,32 +93,63 @@ class FeatureRequest(BaseModel):
 class JobStatus(BaseModel):
     status: str
     logs: list[str]
+#>>>>>>> main
 
 # In-memory store for demo purposes
 projects: list[Project] = []
 
+#<<<<<<< codex/add-fastapi-dependency-for-token-check
+FAKE_TOKEN = "secret-token"
+
+
+def verify_token(authorization: str | None = Header(default=None)) -> None:
+    """Simple token verification dependency."""
+    expected = f"Bearer {FAKE_TOKEN}"
+    if authorization != expected:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or missing token")
+
+
+#=======
+#>>>>>>> main
 @app.get("/", response_class=HTMLResponse)
 async def read_root(request: Request, db: Session = Depends(get_db)):
     projects = db.query(Project).all()
     return templates.TemplateResponse("index.html", {"request": request, "projects": projects})
+#<<<<<<< codex/add-fastapi-dependency-for-token-check
+#=======
 
 
+#>>>>>>> main
 @app.get("/health")
 async def health_check() -> dict[str, str]:
     return {"status": "ok"}
 
 
+#<<<<<<< codex/add-fastapi-dependency-for-token-check
+@app.post("/token")
+async def login(data: LoginRequest) -> dict[str, str]:
+    if data.username == "admin" and data.password == "secret":
+        return {"access_token": FAKE_TOKEN}
+    raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
+
+@app.post("/projects", response_model=Project, dependencies=[Depends(verify_token)])
+#=======
 
 @app.post("/projects", response_model=Project)
+#>>>>>>> main
 async def create_project(project: Project) -> Project:
     projects.append(project)
     return project
 
+#<<<<<<< codex/add-fastapi-dependency-for-token-check
+@app.get("/projects", response_model=list[Project], dependencies=[Depends(verify_token)])
+#=======
 
 
 
 #<<<<<<< codex/implement-enqueue_feature_job-function
 @app.get("/projects", response_model=list[Project])
+#>>>>>>> main
 async def list_projects() -> list[Project]:
     return projects
 

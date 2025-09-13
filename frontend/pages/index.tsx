@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useRouter } from "next/router";
 import {
   Box,
   Button,
@@ -28,6 +29,37 @@ interface Job {
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 export default function Home() {
+#<<<<<<< codex/add-fastapi-dependency-for-token-check
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [name, setName] = useState("");
+  const [repo, setRepo] = useState("");
+  const [stack, setStack] = useState("");
+  const router = useRouter();
+
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    if (!token) {
+      router.push("/login");
+      return;
+    }
+    fetch("http://localhost:8000/projects", {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((res) => res.json())
+      .then(setProjects)
+      .catch(() => setProjects([]));
+  }, [router]);
+
+  const addProject = async () => {
+    const token = localStorage.getItem("token");
+    const res = await fetch("http://localhost:8000/projects", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ name, repo, stack }),
+=======
   const [jobs, setJobs] = useState<Job[]>([]);
   const [prompt, setPrompt] = useState("");
   const [type, setType] = useState("frontend");
@@ -48,6 +80,7 @@ export default function Home() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ prompt, type }),
+#>>>>>>> main
     });
     if (res.ok) {
       setPrompt("");
