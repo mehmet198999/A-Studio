@@ -1,8 +1,10 @@
 fastapi
-uvicorn
-Jinja2
-httpx
-GitPython
+uvicorn[standard]
+SQLAlchemy
+psycopg2-binary
+pydantic
 redis
 rq
-SQLAlchemy
+apscheduler
+python-multipart
+requests

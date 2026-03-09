@@ -1,227 +1,158 @@
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/router';
+import { useEffect, useState } from "react";
+import { useRouter } from "next/router";
+import Layout from "../components/Layout";
+import StatCard from "../components/StatCard";
 
-interface Project {
-  name: string;
-  repo: string;
-  stack: string;
+const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
+interface Stats {
+  total_domains: number;
+  total_domain_emails: number;
+  total_warming_accounts: number;
+  active_campaigns: number;
+  emails_sent_today: number;
+  emails_opened_today: number;
+  emails_replied_today: number;
+  open_rate: number;
+  reply_rate: number;
 }
 
-interface Job {
-  id: string;
-  prompt: string;
-  type: string;
+interface Log {
+  id: number;
+  campaign_id: number;
+  warming_account_id: number;
+  domain_email_id: number;
+  subject: string;
   status: string;
-  score?: number;
-  logs?: string[];
-  preview_url?: string;
-  branch_url?: string;
+  sent_at: string;
+  created_at: string;
 }
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+function authHeader() {
+  const token = typeof window !== "undefined" ? localStorage.getItem("token") : "";
+  return { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
+}
 
-export default function Home() {
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [name, setName] = useState('');
-  const [repo, setRepo] = useState('');
-  const [stack, setStack] = useState('');
-
-  const [jobs, setJobs] = useState<Job[]>([]);
-  const [prompt, setPrompt] = useState('');
-  const [type, setType] = useState('frontend');
+export default function Dashboard() {
   const router = useRouter();
-
-  const fetchProjects = (token: string) => {
-    fetch(`${API_URL}/projects`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((res) => res.json())
-      .then(setProjects)
-      .catch(() => setProjects([]));
-  };
-
-  const fetchJobs = (token: string) => {
-    fetch(`${API_URL}/jobs`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((res) => res.json())
-      .then(setJobs)
-      .catch(() => setJobs([]));
-  };
+  const [stats, setStats] = useState<Stats | null>(null);
+  const [logs, setLogs] = useState<Log[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (!token) {
-      router.push('/login');
-      return;
-    }
-    fetchProjects(token);
-    fetchJobs(token);
+    const token = localStorage.getItem("token");
+    if (!token) { router.push("/login"); return; }
+
+    const fetchData = async () => {
+      try {
+        const [statsRes, logsRes] = await Promise.all([
+          fetch(`${API}/dashboard/stats`, { headers: authHeader() }),
+          fetch(`${API}/logs?limit=10`, { headers: authHeader() }),
+        ]);
+        if (statsRes.status === 401) { router.push("/login"); return; }
+        setStats(await statsRes.json());
+        setLogs(await logsRes.json());
+      } catch {
+        // ignore
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+    const interval = setInterval(fetchData, 30000);
+    return () => clearInterval(interval);
   }, [router]);
 
-  const addProject = async () => {
-    const token = localStorage.getItem('token');
-    if (!token) return;
-    const res = await fetch(`${API_URL}/projects`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ name, repo, stack }),
-    });
-    if (res.ok) {
-      setName('');
-      setRepo('');
-      setStack('');
-      fetchProjects(token);
-    }
+  const statusColor: Record<string, string> = {
+    sent: "bg-blue-900 text-blue-300",
+    received: "bg-purple-900 text-purple-300",
+    opened: "bg-yellow-900 text-yellow-300",
+    replied: "bg-green-900 text-green-300",
+    error: "bg-red-900 text-red-300",
   };
 
-  const createJob = async () => {
-    const token = localStorage.getItem('token');
-    if (!token) return;
-    const res = await fetch(`${API_URL}/jobs`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ prompt, type }),
-    });
-    if (res.ok) {
-      setPrompt('');
-      setType('frontend');
-      fetchJobs(token);
-    }
-  };
+  if (loading) return (
+    <Layout>
+      <div className="flex items-center justify-center h-64">
+        <div className="text-gray-400">Lade Dashboard...</div>
+      </div>
+    </Layout>
+  );
 
   return (
-    <div className="p-8">
-      <h1 className="text-2xl mb-4">Projekte</h1>
-      <div className="flex flex-wrap gap-2 mb-4">
-        <input
-          className="border p-2"
-          placeholder="Name"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-        />
-        <input
-          className="border p-2"
-          placeholder="Repo"
-          value={repo}
-          onChange={(e) => setRepo(e.target.value)}
-        />
-        <input
-          className="border p-2"
-          placeholder="Stack"
-          value={stack}
-          onChange={(e) => setStack(e.target.value)}
-        />
-        <button
-          className="bg-teal-500 text-white px-4"
-          onClick={addProject}
-        >
-          Projekt anlegen
-        </button>
-      </div>
-      <table className="w-full table-auto mb-8 border">
-        <thead>
-          <tr className="bg-gray-100">
-            <th className="text-left p-2">Name</th>
-            <th className="text-left p-2">Repo</th>
-            <th className="text-left p-2">Stack</th>
-          </tr>
-        </thead>
-        <tbody>
-          {projects.map((p) => (
-            <tr key={p.name}>
-              <td className="border p-2">{p.name}</td>
-              <td className="border p-2">{p.repo}</td>
-              <td className="border p-2">{p.stack}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <Layout>
+      <h1 className="text-xl font-bold mb-6">Dashboard</h1>
 
-      <h1 className="text-2xl mb-4">Jobs</h1>
-      <div className="flex flex-wrap gap-2 mb-4">
-        <input
-          className="border p-2 flex-grow"
-          placeholder="Prompt"
-          value={prompt}
-          onChange={(e) => setPrompt(e.target.value)}
-        />
-        <select
-          className="border p-2"
-          value={type}
-          onChange={(e) => setType(e.target.value)}
-        >
-          <option value="frontend">Frontend</option>
-          <option value="backend">Backend</option>
-          <option value="doku">Doku</option>
-        </select>
-        <button
-          className="bg-teal-500 text-white px-4"
-          onClick={createJob}
-        >
-          Generieren
-        </button>
-      </div>
-      <table className="w-full table-auto border">
-        <thead>
-          <tr className="bg-gray-100">
-            <th className="text-left p-2">Prompt</th>
-            <th className="text-left p-2">Typ</th>
-            <th className="text-left p-2">Status</th>
-            <th className="text-left p-2">Score</th>
-            <th className="text-left p-2">Logs</th>
-            <th className="text-left p-2">Preview</th>
-            <th className="text-left p-2">Branch</th>
-          </tr>
-        </thead>
-        <tbody>
-          {jobs.map((job) => (
-            <tr key={job.id}>
-              <td className="border p-2">{job.prompt}</td>
-              <td className="border p-2">{job.type}</td>
-              <td className="border p-2">{job.status}</td>
-              <td className="border p-2">{job.score ?? '-'}</td>
-              <td className="border p-2 whitespace-pre-wrap">
-                {job.logs ? job.logs.join('\n') : '-'}
-              </td>
-              <td className="border p-2">
-                {job.preview_url ? (
-                  <a
-                    className="bg-teal-500 text-white px-2 py-1 inline-block"
-                    href={job.preview_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    Preview öffnen
-                  </a>
-                ) : (
-                  '-'
-                )}
-              </td>
-              <td className="border p-2">
-                {job.branch_url ? (
-                  <a
-                    className="text-teal-600"
-                    href={job.branch_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    Branch ansehen
-                  </a>
-                ) : (
-                  '-'
-                )}
-              </td>
+      {stats && (
+        <>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+            <StatCard label="Domains" value={stats.total_domains} color="blue" />
+            <StatCard label="Domain-E-Mails" value={stats.total_domain_emails} color="purple" />
+            <StatCard label="Warming-Accounts" value={stats.total_warming_accounts} color="yellow" />
+            <StatCard label="Aktive Kampagnen" value={stats.active_campaigns} color="green" />
+          </div>
+
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-8">
+            <StatCard
+              label="Gesendet heute"
+              value={stats.emails_sent_today}
+              color="blue"
+            />
+            <StatCard
+              label="Öffnungsrate"
+              value={`${stats.open_rate}%`}
+              sub={`${stats.emails_opened_today} geöffnet`}
+              color="green"
+            />
+            <StatCard
+              label="Antwortrate"
+              value={`${stats.reply_rate}%`}
+              sub={`${stats.emails_replied_today} beantwortet`}
+              color="yellow"
+            />
+          </div>
+        </>
+      )}
+
+      <div className="bg-gray-900 border border-gray-800 rounded-lg overflow-hidden">
+        <div className="px-4 py-3 border-b border-gray-800">
+          <h2 className="font-semibold text-sm">Letzte Aktivitäten</h2>
+        </div>
+        <table className="w-full text-sm">
+          <thead className="bg-gray-800/50">
+            <tr>
+              <th className="text-left px-4 py-2 text-gray-400 font-medium">Betreff</th>
+              <th className="text-left px-4 py-2 text-gray-400 font-medium">Status</th>
+              <th className="text-left px-4 py-2 text-gray-400 font-medium">Kampagne</th>
+              <th className="text-left px-4 py-2 text-gray-400 font-medium">Zeit</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+          </thead>
+          <tbody>
+            {logs.length === 0 ? (
+              <tr>
+                <td colSpan={4} className="px-4 py-6 text-center text-gray-500">
+                  Noch keine Aktivitäten
+                </td>
+              </tr>
+            ) : (
+              logs.map((log) => (
+                <tr key={log.id} className="border-t border-gray-800/50 hover:bg-gray-800/20">
+                  <td className="px-4 py-2 text-gray-300 max-w-xs truncate">{log.subject || "-"}</td>
+                  <td className="px-4 py-2">
+                    <span className={`px-2 py-0.5 rounded text-xs font-medium ${statusColor[log.status] || "bg-gray-800 text-gray-400"}`}>
+                      {log.status}
+                    </span>
+                  </td>
+                  <td className="px-4 py-2 text-gray-400">#{log.campaign_id}</td>
+                  <td className="px-4 py-2 text-gray-500 text-xs">
+                    {new Date(log.created_at).toLocaleString("de-DE")}
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+    </Layout>
   );
 }

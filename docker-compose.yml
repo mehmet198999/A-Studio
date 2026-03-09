@@ -1,29 +1,24 @@
 version: "3.9"
-services:
-  traefik:
-    image: traefik:v2.10
-    command:
-      - --providers.docker=true
-      - --providers.docker.exposedbydefault=false
-      - --providers.docker.network=web
-      - --entrypoints.web.address=:80
-      - --entrypoints.websecure.address=:443
-    ports:
-      - "8088:80"
-      - "8444:443"
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-    networks:
-      - web
 
+services:
   postgres:
     image: postgres:16
     environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=postgres
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: warming
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    networks:
+      - web
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
     networks:
       - web
 
@@ -32,56 +27,60 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - DATABASE_URL=postgresql+psycopg2://postgres:postgres@postgres/postgres
-      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
-      - AUTH_TOKEN=${AUTH_TOKEN:-secret-token}
+      - DATABASE_URL=postgresql+psycopg2://postgres:postgres@postgres/warming
+      - REDIS_URL=redis://redis:6379/0
+      - AUTH_TOKEN=${AUTH_TOKEN:-warming-secret-token}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin123}
     depends_on:
-      - postgres
-      - redis
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.backend.rule=Host(`${BRANCH_NAME}.app.a-server.ch`) && PathPrefix(`/api`)"
-      - "traefik.http.routers.backend.entrypoints=web,websecure"
-      - "traefik.http.routers.backend.tls=true"
-      - "traefik.http.services.backend.loadbalancer.server.port=8000"
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
     networks:
       - web
+    restart: unless-stopped
+
+  worker:
+    build: ./backend
+    command: python -m app.worker
+    environment:
+      - DATABASE_URL=postgresql+psycopg2://postgres:postgres@postgres/warming
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    networks:
+      - web
+    restart: unless-stopped
+
+  scheduler:
+    build: ./backend
+    command: python -m app.scheduler
+    environment:
+      - DATABASE_URL=postgresql+psycopg2://postgres:postgres@postgres/warming
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    networks:
+      - web
+    restart: unless-stopped
 
   frontend:
     build: ./frontend
     ports:
       - "3000:3000"
     environment:
-      - NEXT_PUBLIC_API_URL=http://backend:8000
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
     depends_on:
       - backend
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.frontend.rule=Host(`${BRANCH_NAME}.app.a-server.ch`)"
-      - "traefik.http.routers.frontend.entrypoints=web,websecure"
-      - "traefik.http.routers.frontend.tls=true"
-      - "traefik.http.services.frontend.loadbalancer.server.port=3000"
     networks:
       - web
-
-  redis:
-    image: redis:7-alpine
-    ports:
-      - "6379:6379"
-    networks:
-      - web
-
-  worker:
-    build: ./backend
-    command: python -m app.worker
-    environment:
-      - DATABASE_URL=postgresql+psycopg2://postgres:postgres@postgres/postgres
-      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
-    depends_on:
-      - redis
-      - postgres
-    networks:
-      - web
+    restart: unless-stopped
 
 networks:
   web:
