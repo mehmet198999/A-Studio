@@ -32,8 +32,10 @@ PROVIDER_SETTINGS = {
         "imap_port": 993,
     },
     "firstmail": {
+        # Firstmail.ltd – uses SSL on port 465 for SMTP, SSL 993 for IMAP
+        # username = full email address, standard password auth
         "smtp_host": "smtp.firstmail.ltd",
-        "smtp_port": 587,
+        "smtp_port": 465,   # SSL (not STARTTLS)
         "imap_host": "imap.firstmail.ltd",
         "imap_port": 993,
     },
@@ -114,10 +116,15 @@ def _build_xoauth2_string(email: str, access_token: str) -> str:
 # ── SMTP helpers ─────────────────────────────────────────────────────────────
 
 def _get_smtp(account) -> smtplib.SMTP:
-    smtp = smtplib.SMTP(account.smtp_host, account.smtp_port, timeout=30)
-    smtp.ehlo()
-    smtp.starttls()
-    smtp.ehlo()
+    # Port 465 = implicit SSL (SMTP_SSL), port 587 = STARTTLS
+    if account.smtp_port == 465:
+        smtp = smtplib.SMTP_SSL(account.smtp_host, account.smtp_port, timeout=30)
+        smtp.ehlo()
+    else:
+        smtp = smtplib.SMTP(account.smtp_host, account.smtp_port, timeout=30)
+        smtp.ehlo()
+        smtp.starttls()
+        smtp.ehlo()
 
     if account.auth_type == "oauth2":
         access_token = get_valid_access_token(account)

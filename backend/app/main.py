@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from .database import Base, engine, get_db
 from .email_service import PROVIDER_SETTINGS, test_connection
+from .oauth2_service import detect_provider, get_outlook_token_ropc
 from .models import (
     AuthTypeEnum,
     CampaignStatusEnum,
@@ -186,24 +187,62 @@ def create_account(data: WarmingAccountCreate, db: Session = Depends(get_db)):
 
 
 @app.post("/accounts/import", dependencies=[Depends(verify_token)])
-async def import_accounts_csv(file: UploadFile, db: Session = Depends(get_db)):
+async def import_accounts_csv(
+    file: UploadFile,
+    auto_oauth2: bool = False,
+    db: Session = Depends(get_db),
+):
     """
-    CSV import: columns = email, password, provider, auth_type (optional)
-    Provider values: outlook, gmail, firstmail, custom
+    Smart CSV import.
+
+    Minimal CSV (only 2 columns needed):
+        email,password
+
+    Optional columns:
+        provider   → auto-detected from email domain if omitted
+        auth_type  → auto-set based on provider if omitted
+
+    auto_oauth2=true: automatically fetch Outlook OAuth2 tokens during import
+    (requires OUTLOOK_CLIENT_ID in .env)
+
+    Gmail: password MUST be an App Password (16 chars, spaces optional)
+    Outlook: if auto_oauth2=true, password is used to fetch token then discarded
+    Firstmail: standard password, works directly
     """
     content = await file.read()
     reader = csv.DictReader(io.StringIO(content.decode("utf-8-sig")))
     created = 0
+    oauth2_ok = 0
     errors = []
 
     for i, row in enumerate(reader):
         try:
-            provider_val = row.get("provider", "outlook").strip().lower()
-            auth_type_val = row.get("auth_type", "password").strip().lower()
+            email = row.get("email", "").strip()
+            if not email:
+                errors.append(f"Zeile {i+2}: Email fehlt")
+                continue
+
+            password = row.get("password", "").strip() or None
+
+            # Auto-detect provider from email domain
+            raw_provider = row.get("provider", "").strip().lower()
+            provider_val = raw_provider if raw_provider in ("outlook", "gmail", "firstmail", "custom") \
+                else detect_provider(email)
+
+            # Auto-set auth_type
+            raw_auth = row.get("auth_type", "").strip().lower()
+            if raw_auth in ("password", "app_password", "oauth2"):
+                auth_type_val = raw_auth
+            elif provider_val == "gmail":
+                auth_type_val = "app_password"
+            elif provider_val == "outlook" and auto_oauth2:
+                auth_type_val = "oauth2"
+            else:
+                auth_type_val = "password"
 
             data = WarmingAccountCreate(
-                email=row["email"].strip(),
-                password=row.get("password", "").strip() or None,
+                email=email,
+                password=password,
                 provider=ProviderEnum(provider_val),
                 auth_type=AuthTypeEnum(auth_type_val),
             )
@@ -211,17 +250,103 @@ async def import_accounts_csv(file: UploadFile, db: Session = Depends(get_db)):
 
             existing = db.query(WarmingAccount).filter(WarmingAccount.email == data.email).first()
             if existing:
-                errors.append(f"Row {i+2}: {data.email} already exists")
+                errors.append(f"Zeile {i+2}: {email} existiert bereits")
                 continue
 
             account = WarmingAccount(**data.model_dump())
+
+            # Auto-fetch Outlook OAuth2 token if requested
+            if auto_oauth2 and provider_val == "outlook" and password:
+                try:
+                    tok = get_outlook_token_ropc(email, password)
+                    account.oauth2_access_token = tok["access_token"]
+                    account.oauth2_refresh_token = tok["refresh_token"]
+                    account.oauth2_token_expiry = tok["token_expiry"]
+                    account.auth_type = AuthTypeEnum.oauth2
+                    account.password = None  # Don't store plain password
+                    oauth2_ok += 1
+                except Exception as e:
+                    errors.append(f"Zeile {i+2}: OAuth2 für {email} fehlgeschlagen – {e}")
+                    account.auth_type = AuthTypeEnum.password  # Fall back
+
             db.add(account)
             created += 1
         except Exception as e:
-            errors.append(f"Row {i+2}: {e}")
+            errors.append(f"Zeile {i+2}: {e}")
 
     db.commit()
-    return {"created": created, "errors": errors}
+    return {"created": created, "oauth2_tokens_fetched": oauth2_ok, "errors": errors}
+
+
+# ── Bulk operations ───────────────────────────────────────────────────────────
+
+@app.post("/accounts/bulk-delete", dependencies=[Depends(verify_token)])
+def bulk_delete_accounts(ids: List[int], db: Session = Depends(get_db)):
+    """Delete multiple accounts by ID list."""
+    deleted = db.query(WarmingAccount).filter(WarmingAccount.id.in_(ids)).delete(synchronize_session=False)
+    db.commit()
+    return {"deleted": deleted}
+
+
+@app.post("/accounts/bulk-toggle", dependencies=[Depends(verify_token)])
+def bulk_toggle_accounts(ids: List[int], active: bool, db: Session = Depends(get_db)):
+    """Activate or deactivate multiple accounts."""
+    updated = db.query(WarmingAccount).filter(WarmingAccount.id.in_(ids)).update(
+        {"active": active}, synchronize_session=False
+    )
+    db.commit()
+    return {"updated": updated}
+
+
+@app.post("/accounts/bulk-oauth2", dependencies=[Depends(verify_token)])
+def bulk_fetch_oauth2_tokens(db: Session = Depends(get_db)):
+    """
+    Fetch Outlook OAuth2 tokens for all Outlook accounts that still use
+    password auth and have a stored password.
+    Returns per-account results.
+    """
+    accounts = db.query(WarmingAccount).filter(
+        WarmingAccount.provider == ProviderEnum.outlook,
+        WarmingAccount.auth_type == AuthTypeEnum.password,
+        WarmingAccount.password != None,
+    ).all()
+
+    results = []
+    for acc in accounts:
+        try:
+            tok = get_outlook_token_ropc(acc.email, acc.password)
+            acc.oauth2_access_token = tok["access_token"]
+            acc.oauth2_refresh_token = tok["refresh_token"]
+            acc.oauth2_token_expiry = tok["token_expiry"]
+            acc.auth_type = AuthTypeEnum.oauth2
+            acc.password = None
+            results.append({"email": acc.email, "status": "ok"})
+        except Exception as e:
+            results.append({"email": acc.email, "status": "error", "detail": str(e)})
+
+    db.commit()
+    return {"processed": len(results), "results": results}
+
+
+@app.post("/accounts/{account_id}/fetch-oauth2", dependencies=[Depends(verify_token)])
+def fetch_single_oauth2_token(account_id: int, db: Session = Depends(get_db)):
+    """Fetch Outlook OAuth2 token for a single account (must have password stored)."""
+    account = db.get(WarmingAccount, account_id)
+    if not account:
+        raise HTTPException(status_code=404, detail="Account not found")
+    if account.provider != ProviderEnum.outlook:
+        raise HTTPException(status_code=400, detail="Only Outlook accounts support ROPC OAuth2")
+    if not account.password:
+        raise HTTPException(status_code=400, detail="No password stored for this account")
+
+    tok = get_outlook_token_ropc(account.email, account.password)
+    account.oauth2_access_token = tok["access_token"]
+    account.oauth2_refresh_token = tok["refresh_token"]
+    account.oauth2_token_expiry = tok["token_expiry"]
+    account.auth_type = AuthTypeEnum.oauth2
+    account.password = None
+    db.commit()
+    return {"status": "ok", "email": account.email}
 
 
 @app.get("/accounts/{account_id}", response_model=WarmingAccountOut, dependencies=[Depends(verify_token)])
