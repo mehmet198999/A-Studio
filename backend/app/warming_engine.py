@@ -19,11 +19,22 @@ from .models import (
 
 
 def calculate_emails_today(campaign: WarmingCampaign) -> int:
-    """Calculate how many emails to send today based on ramp-up schedule."""
+    """
+    Calculate how many emails to send today.
+    During start_delay_days: return 0 (preparation phase, no sends).
+    After delay: ramp up linearly from start to max over ramp_up_days.
+    """
+    delay = getattr(campaign, "start_delay_days", 3)
     day = campaign.current_day
-    if day >= campaign.ramp_up_days:
+
+    if day < delay:
+        return 0  # Preparation phase – no emails yet
+
+    effective_day = day - delay
+    if effective_day >= campaign.ramp_up_days:
         return campaign.emails_per_day_max
-    ratio = day / campaign.ramp_up_days
+
+    ratio = effective_day / campaign.ramp_up_days
     count = campaign.emails_per_day_start + int(
         (campaign.emails_per_day_max - campaign.emails_per_day_start) * ratio
     )

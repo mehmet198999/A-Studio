@@ -16,6 +16,7 @@ interface Campaign {
   emails_per_day_start: number;
   emails_per_day_max: number;
   ramp_up_days: number;
+  start_delay_days: number;
   current_day: number;
   start_date: string | null;
   created_at: string;
@@ -29,6 +30,7 @@ export default function CampaignsPage() {
     emails_per_day_start: 5,
     emails_per_day_max: 50,
     ramp_up_days: 30,
+    start_delay_days: 3,
   });
   const [showForm, setShowForm] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -166,13 +168,17 @@ export default function CampaignsPage() {
                 className="w-full mt-1 bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
               />
             </div>
-            <div className="flex items-end">
-              <div className="text-xs text-gray-500 pb-2">
-                Tägl. Steigerung:<br />
-                <span className="text-blue-400">
-                  {form.emails_per_day_start} → {form.emails_per_day_max} in {form.ramp_up_days} Tagen
-                </span>
-              </div>
+            <div>
+              <label className="text-xs text-gray-400">Wartezeit (Tage)</label>
+              <input
+                type="number"
+                min={0}
+                max={14}
+                value={form.start_delay_days}
+                onChange={(e) => setForm({ ...form, start_delay_days: Number(e.target.value) })}
+                className="w-full mt-1 bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
+              />
+              <p className="text-xs text-gray-600 mt-1">Tage vor erstem Send (Empfehlung: 3–4)</p>
             </div>
           </div>
           {error && <p className="text-red-400 text-xs mb-3">{error}</p>}
@@ -205,7 +211,11 @@ export default function CampaignsPage() {
                     </span>
                   </div>
                   <p className="text-xs text-gray-500">
-                    Tag {c.current_day}/{c.ramp_up_days} · Heute ca. {emailsToday(c)} E-Mails
+                    Tag {c.current_day}/{c.ramp_up_days + c.start_delay_days} · {
+                      c.current_day < c.start_delay_days
+                        ? `Vorbereitungsphase (${c.start_delay_days - c.current_day} Tage bis Start)`
+                        : `Heute ca. ${emailsToday(c)} E-Mails`
+                    }
                     {c.start_date && ` · Gestartet: ${new Date(c.start_date).toLocaleDateString("de-DE")}`}
                   </p>
                 </div>
@@ -220,14 +230,20 @@ export default function CampaignsPage() {
               {/* Progress bar */}
               <div className="mb-4">
                 <div className="flex justify-between text-xs text-gray-500 mb-1">
-                  <span>{c.emails_per_day_start} E-Mails/Tag</span>
-                  <span>{progressPercent(c)}% des Ramp-ups</span>
+                  <span className="text-yellow-600">Vorbereitung ({c.start_delay_days}T)</span>
+                  <span>{progressPercent(c)}% Ramp-up</span>
                   <span>{c.emails_per_day_max} E-Mails/Tag</span>
                 </div>
-                <div className="h-2 bg-gray-800 rounded-full overflow-hidden">
+                <div className="h-2 bg-gray-800 rounded-full overflow-hidden flex">
+                  {/* Delay phase indicator */}
                   <div
-                    className="h-full bg-blue-500 rounded-full transition-all"
-                    style={{ width: `${progressPercent(c)}%` }}
+                    className="h-full bg-yellow-700 rounded-l-full"
+                    style={{ width: `${(c.start_delay_days / (c.start_delay_days + c.ramp_up_days)) * 100}%` }}
+                  />
+                  {/* Ramp-up progress */}
+                  <div
+                    className="h-full bg-blue-500"
+                    style={{ width: `${progressPercent(c) * (c.ramp_up_days / (c.start_delay_days + c.ramp_up_days))}%` }}
                   />
                 </div>
               </div>

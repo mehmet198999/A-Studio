@@ -22,14 +22,17 @@ from .models import (
     WarmingCampaign,
     WarmingLog,
 )
+from .reputation_service import check_domain_reputation
 from .schemas import (
     CampaignCreate,
     CampaignOut,
+    DailyStatPoint,
     DashboardStats,
     DomainCreate,
     DomainEmailCreate,
     DomainEmailOut,
     DomainOut,
+    DomainReputation,
     LoginRequest,
     WarmingAccountCreate,
     WarmingAccountOut,
@@ -419,3 +422,51 @@ def get_dashboard_stats(db: Session = Depends(get_db)):
         open_rate=open_rate,
         reply_rate=reply_rate,
     )
+
+
+@app.get("/dashboard/daily-stats", response_model=List[DailyStatPoint], dependencies=[Depends(verify_token)])
+def get_daily_stats(days: int = 14, db: Session = Depends(get_db)):
+    """Return per-day email statistics for the last N days."""
+    from datetime import date, timedelta
+
+    result = []
+    today = date.today()
+    for i in range(days - 1, -1, -1):
+        day = today - timedelta(days=i)
+        day_start = datetime.combine(day, datetime.min.time())
+        day_end = datetime.combine(day, datetime.max.time())
+
+        base = db.query(WarmingLog).filter(
+            WarmingLog.created_at >= day_start,
+            WarmingLog.created_at <= day_end,
+        )
+        sent = base.filter(WarmingLog.sent_at != None).count()
+        opened = base.filter(WarmingLog.opened_at != None).count()
+        replied = base.filter(WarmingLog.replied_at != None).count()
+        errors = base.filter(WarmingLog.status == "error").count()
+
+        result.append(DailyStatPoint(
+            date=day.strftime("%d.%m"),
+            sent=sent,
+            opened=opened,
+            replied=replied,
+            errors=errors,
+        ))
+    return result
+
+
+# ── Reputation ────────────────────────────────────────────────────────────────
+
+@app.get("/domains/{domain_id}/reputation", response_model=DomainReputation, dependencies=[Depends(verify_token)])
+def get_domain_reputation(domain_id: int, db: Session = Depends(get_db)):
+    """Run free DNS-based reputation check on a domain."""
+    domain = db.get(Domain, domain_id)
+    if not domain:
+        raise HTTPException(status_code=404, detail="Domain not found")
+    return check_domain_reputation(domain.name)
+
+
+@app.get("/reputation/check", response_model=DomainReputation, dependencies=[Depends(verify_token)])
+def check_reputation_by_name(domain: str):
+    """Check reputation for any domain name (query param)."""
+    return check_domain_reputation(domain)

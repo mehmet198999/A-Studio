@@ -8,3 +8,4 @@ rq
 apscheduler
 python-multipart
 requests
+dnspython

@@ -87,6 +87,7 @@ class CampaignCreate(BaseModel):
     emails_per_day_start: int = 5
     emails_per_day_max: int = 50
     ramp_up_days: int = 30
+    start_delay_days: int = 3  # Days to wait before first send (warming prep)
 
 
 class CampaignOut(CampaignCreate):
@@ -129,6 +130,41 @@ class DashboardStats(BaseModel):
     emails_replied_today: int
     open_rate: float
     reply_rate: float
+
+
+# ── Daily stats ──────────────────────────────────────────────────────────────
+
+class DailyStatPoint(BaseModel):
+    date: str
+    sent: int
+    opened: int
+    replied: int
+    errors: int
+
+
+# ── Domain reputation ─────────────────────────────────────────────────────────
+
+class DnsRecord(BaseModel):
+    record: str
+    found: bool
+    value: Optional[str] = None
+
+
+class BlacklistResult(BaseModel):
+    name: str
+    listed: bool
+    detail: Optional[str] = None
+
+
+class DomainReputation(BaseModel):
+    domain: str
+    mx: DnsRecord
+    spf: DnsRecord
+    dkim: DnsRecord
+    dmarc: DnsRecord
+    blacklists: List[BlacklistResult]
+    score: int  # 0–100
+    score_label: str  # "Gut", "Mittel", "Schlecht"
 
 
 # ── Auth ──────────────────────────────────────────────────────────────────────

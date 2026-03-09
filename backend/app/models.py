@@ -110,6 +110,7 @@ class WarmingCampaign(Base):
     emails_per_day_max = Column(Integer, default=50)
     ramp_up_days = Column(Integer, default=30)
     current_day = Column(Integer, default=0)
+    start_delay_days = Column(Integer, default=3)  # Wait X days before first send
     start_date = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
