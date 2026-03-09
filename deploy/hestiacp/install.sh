@@ -1,45 +1,59 @@
 #!/bin/bash
 # ============================================================
 # Domain Warming – HestiaCP / VPS Install Script
-# Kein Docker nötig. Direkt auf dem Server laufen lassen.
+# Direkter GitHub-Clone – kein manuelles Kopieren nötig!
+#
+# Einmaliger Befehl auf dem VPS:
+#   curl -fsSL https://raw.githubusercontent.com/mehmet198999/A-Studio/claude/automate-domain-warming-7zLJg/deploy/hestiacp/install.sh | sudo bash
+#
 # Getestet auf: Ubuntu 20.04 / 22.04 mit HestiaCP
 # ============================================================
 set -e
 
+GITHUB_REPO="https://github.com/mehmet198999/A-Studio.git"
+GITHUB_BRANCH="claude/automate-domain-warming-7zLJg"
 APP_DIR="/opt/domain-warming"
-DOMAIN=""           # z.B. warming.meinedomain.de
-ADMIN_PASS=""       # Admin-Passwort fürs Dashboard
 
 echo "=============================="
 echo " Domain Warming Installer"
+echo " Quelle: GitHub"
 echo "=============================="
 
 # ── Konfiguration abfragen ─────────────────────────────────
-if [ -z "$DOMAIN" ]; then
-  read -p "Domain (z.B. warming.meinedomain.de): " DOMAIN
-fi
-if [ -z "$ADMIN_PASS" ]; then
-  read -sp "Admin-Passwort fürs Dashboard: " ADMIN_PASS
-  echo
-fi
+read -p "Domain (z.B. warming.meinedomain.de): " DOMAIN
+read -sp "Admin-Passwort fürs Dashboard: " ADMIN_PASS; echo
+read -p "SSL-E-Mail (für Let's Encrypt): " SSL_EMAIL
+echo ""
 
 AUTH_TOKEN=$(openssl rand -hex 24)
 DB_PASS=$(openssl rand -hex 16)
 
-echo ""
+# ── System-Pakete ───────────────────────────────────────────
 echo ">>> Installiere System-Pakete..."
 apt-get update -q
-apt-get install -y python3.11 python3.11-venv python3-pip nodejs npm redis-server postgresql nginx
+apt-get install -y -q \
+  git curl \
+  python3.11 python3.11-venv python3-pip \
+  nodejs npm \
+  redis-server postgresql \
+  nginx certbot python3-certbot-nginx
+
+# ── Code von GitHub laden ───────────────────────────────────
+echo ">>> Lade Code von GitHub (Branch: ${GITHUB_BRANCH})..."
+if [ -d "$APP_DIR/.git" ]; then
+  echo "    Repo existiert bereits – aktualisiere..."
+  git -C "$APP_DIR" fetch origin
+  git -C "$APP_DIR" checkout "$GITHUB_BRANCH"
+  git -C "$APP_DIR" pull origin "$GITHUB_BRANCH"
+else
+  git clone --branch "$GITHUB_BRANCH" --depth 1 "$GITHUB_REPO" "$APP_DIR"
+fi
+echo "    Code geladen: $APP_DIR"
 
 # ── PostgreSQL ─────────────────────────────────────────────
 echo ">>> Konfiguriere PostgreSQL..."
 sudo -u postgres psql -c "CREATE USER warming WITH PASSWORD '$DB_PASS';" 2>/dev/null || true
 sudo -u postgres psql -c "CREATE DATABASE warming OWNER warming;" 2>/dev/null || true
-
-# ── App-Verzeichnis ────────────────────────────────────────
-echo ">>> Kopiere App..."
-mkdir -p "$APP_DIR"
-cp -r "$(dirname "$0")/../../"* "$APP_DIR/" 2>/dev/null || true
 
 # ── Backend / Python venv ──────────────────────────────────
 echo ">>> Installiere Python-Abhängigkeiten..."
@@ -49,14 +63,19 @@ venv/bin/pip install -q --upgrade pip
 venv/bin/pip install -q -r requirements.txt
 
 # ── .env schreiben ─────────────────────────────────────────
-cat > "$APP_DIR/backend/.env" << ENV
+if [ ! -f "$APP_DIR/backend/.env" ]; then
+  cat > "$APP_DIR/backend/.env" << ENV
 DATABASE_URL=postgresql+psycopg2://warming:${DB_PASS}@localhost/warming
 REDIS_URL=redis://localhost:6379/0
 AUTH_TOKEN=${AUTH_TOKEN}
 ADMIN_PASSWORD=${ADMIN_PASS}
-# Outlook OAuth2 (optional – Azure AD App Client ID eintragen):
+# Outlook OAuth2 – Azure AD App Client ID eintragen:
 # OUTLOOK_CLIENT_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
 ENV
+  echo "    .env erstellt"
+else
+  echo "    .env bereits vorhanden – wird nicht überschrieben"
+fi
 
 # ── Frontend / Next.js Build ───────────────────────────────
 echo ">>> Baue Frontend..."
@@ -124,16 +143,15 @@ SVC
 cat > /etc/systemd/system/warming-frontend.service << SVC
 [Unit]
 Description=Domain Warming Frontend (Next.js)
-After=network.target
+After=network.target warming-backend.service
 
 [Service]
 User=www-data
 WorkingDirectory=${APP_DIR}/frontend
 Environment=NODE_ENV=production
-ExecStart=/usr/bin/npm start
+ExecStart=$(which npm) start
 Restart=always
 RestartSec=5
-Port=3000
 
 [Install]
 WantedBy=multi-user.target
@@ -141,6 +159,7 @@ SVC
 
 systemctl daemon-reload
 systemctl enable warming-backend warming-worker warming-scheduler warming-frontend
+systemctl start redis-server postgresql
 systemctl start warming-backend warming-worker warming-scheduler warming-frontend
 
 # ── Nginx Config ───────────────────────────────────────────
@@ -149,8 +168,6 @@ cat > "/etc/nginx/sites-available/warming" << NGINX
 server {
     listen 80;
     server_name ${DOMAIN};
-
-    # Redirect HTTP → HTTPS (Certbot ergänzt dies automatisch)
     return 301 https://\$host\$request_uri;
 }
 
@@ -158,11 +175,7 @@ server {
     listen 443 ssl http2;
     server_name ${DOMAIN};
 
-    # SSL wird von Certbot automatisch eingetragen
-    # ssl_certificate /etc/letsencrypt/live/${DOMAIN}/fullchain.pem;
-    # ssl_certificate_key /etc/letsencrypt/live/${DOMAIN}/privkey.pem;
-
-    # Backend API (FastAPI)
+    # Backend API
     location /api/ {
         rewrite ^/api/(.*) /\$1 break;
         proxy_pass http://127.0.0.1:8000;
@@ -172,7 +185,7 @@ server {
         proxy_read_timeout 60s;
     }
 
-    # Frontend (Next.js)
+    # Frontend
     location / {
         proxy_pass http://127.0.0.1:3000;
         proxy_set_header Host \$host;
@@ -184,12 +197,12 @@ server {
 NGINX
 
 ln -sf /etc/nginx/sites-available/warming /etc/nginx/sites-enabled/warming
+rm -f /etc/nginx/sites-enabled/default
 nginx -t && systemctl reload nginx
 
-# ── SSL mit Certbot ────────────────────────────────────────
+# ── SSL ────────────────────────────────────────────────────
 echo ">>> Installiere SSL-Zertifikat..."
-apt-get install -y certbot python3-certbot-nginx -q
-certbot --nginx -d "$DOMAIN" --non-interactive --agree-tos --email "admin@${DOMAIN}" || \
+certbot --nginx -d "$DOMAIN" --non-interactive --agree-tos --email "$SSL_EMAIL" || \
   echo "WARNUNG: Certbot fehlgeschlagen – SSL manuell einrichten"
 
 # ── Fertig ─────────────────────────────────────────────────
@@ -200,19 +213,18 @@ echo "=============================="
 echo ""
 echo "  Dashboard: https://${DOMAIN}"
 echo "  Login:     admin / ${ADMIN_PASS}"
-echo "  API:       https://${DOMAIN}/api"
 echo ""
-echo "  Auth-Token (für .env):  ${AUTH_TOKEN}"
+echo "  .env Datei:  ${APP_DIR}/backend/.env"
+echo "  Auth-Token:  ${AUTH_TOKEN}"
 echo ""
-echo "  Services prüfen:"
+echo "  Services:"
 echo "    systemctl status warming-backend"
-echo "    systemctl status warming-worker"
-echo "    systemctl status warming-scheduler"
-echo ""
-echo "  Logs:"
 echo "    journalctl -u warming-backend -f"
 echo ""
 echo "  Outlook OAuth2 aktivieren:"
-echo "    1. Azure Portal → App registrieren (kostenlos)"
-echo "    2. Client ID in ${APP_DIR}/backend/.env eintragen"
-echo "    3. systemctl restart warming-backend"
+echo "    nano ${APP_DIR}/backend/.env"
+echo "    → OUTLOOK_CLIENT_ID eintragen"
+echo "    systemctl restart warming-backend"
+echo ""
+echo "  Updates:"
+echo "    sudo ${APP_DIR}/deploy/hestiacp/update.sh"
