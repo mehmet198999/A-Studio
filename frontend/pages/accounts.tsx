@@ -134,7 +134,8 @@ export default function AccountsPage() {
     setTestingId(id);
     try {
       const res = await fetch(`${API}/accounts/${id}/test`, { method: "POST", headers: authHeader() });
-      setTestResult((p) => ({ ...p, [id]: await res.json() }));
+      const data = await res.json();
+      setTestResult((p) => ({ ...p, [id]: data }));
     } finally { setTestingId(null); }
   };
 
