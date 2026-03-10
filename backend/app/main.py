@@ -143,6 +143,14 @@ def delete_domain_email(domain_id: int, email_id: int, db: Session = Depends(get
     return {"status": "deleted"}
 
 
+@app.post("/domains/{domain_id}/emails/{email_id}/test", dependencies=[Depends(verify_token)])
+def test_domain_email_connection(domain_id: int, email_id: int, db: Session = Depends(get_db)):
+    de = db.get(DomainEmail, email_id)
+    if not de or de.domain_id != domain_id:
+        raise HTTPException(status_code=404, detail="Email not found")
+    return test_connection(de)
+
+
 # ── Warming Accounts ──────────────────────────────────────────────────────────
 
 def _apply_provider_defaults(data: WarmingAccountCreate) -> WarmingAccountCreate:

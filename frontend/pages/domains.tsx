@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import Layout from "../components/Layout";
-import { Alert, Button, Card, Label, Modal, ModalBody, ModalHeader, TextInput } from "flowbite-react";
+import { Alert, Badge, Button, Card, Label, Modal, ModalBody, ModalHeader, Spinner, TextInput } from "flowbite-react";
 
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -56,6 +56,8 @@ export default function DomainsPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [showEmailModal, setShowEmailModal] = useState(false);
+  const [testingEmailId, setTestingEmailId] = useState<number | null>(null);
+  const [testResults, setTestResults] = useState<Record<number, { smtp: boolean; imap: boolean; smtp_error?: string; imap_error?: string }>>({});
 
   useEffect(() => {
     if (!localStorage.getItem("token")) { router.push("/login"); return; }
@@ -115,6 +117,19 @@ export default function DomainsPage() {
       setError(e.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const testEmail = async (domainId: number, emailId: number) => {
+    setTestingEmailId(emailId);
+    try {
+      const res = await fetch(`${API}/domains/${domainId}/emails/${emailId}/test`, {
+        method: "POST", headers: authHeader(),
+      });
+      const data = await res.json();
+      setTestResults((prev) => ({ ...prev, [emailId]: data }));
+    } finally {
+      setTestingEmailId(null);
     }
   };
 
@@ -202,27 +217,52 @@ export default function DomainsPage() {
               </div>
 
               <div className="space-y-2">
-                {selectedDomain.emails.map((em) => (
-                  <Card key={em.id} className="bg-gray-900 border-gray-800 shadow-none">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium truncate">{em.email}</p>
-                        <p className="text-xs text-gray-500 mt-0.5">
-                          SMTP: {em.smtp_host}:{em.smtp_port} · IMAP: {em.imap_host}:{em.imap_port}
-                        </p>
+                {selectedDomain.emails.map((em) => {
+                  const tr = testResults[em.id];
+                  return (
+                    <Card key={em.id} className="bg-gray-900 border-gray-800 shadow-none">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium truncate">{em.email}</p>
+                          <p className="text-xs text-gray-500 mt-0.5">
+                            SMTP: {em.smtp_host}:{em.smtp_port} · IMAP: {em.imap_host}:{em.imap_port}
+                          </p>
+                          {/* Test result */}
+                          {tr && (
+                            <div className="flex flex-wrap gap-2 mt-2">
+                              <Badge color={tr.smtp ? "success" : "failure"} size="xs">
+                                SMTP {tr.smtp ? "✓" : "✗"}
+                              </Badge>
+                              <Badge color={tr.imap ? "success" : "failure"} size="xs">
+                                IMAP {tr.imap ? "✓" : "✗"}
+                              </Badge>
+                              {tr.smtp_error && <p className="text-xs text-red-400 w-full">{tr.smtp_error}</p>}
+                              {tr.imap_error && <p className="text-xs text-red-400 w-full">{tr.imap_error}</p>}
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex flex-col gap-1.5 flex-shrink-0">
+                          <Button
+                            size="xs"
+                            color="gray"
+                            onClick={() => testEmail(selectedDomain.id, em.id)}
+                            disabled={testingEmailId === em.id}
+                          >
+                            {testingEmailId === em.id ? <Spinner size="xs" /> : "Verbindung testen"}
+                          </Button>
+                          <Button
+                            size="xs"
+                            color="failure"
+                            outline
+                            onClick={() => deleteEmail(selectedDomain.id, em.id)}
+                          >
+                            Löschen
+                          </Button>
+                        </div>
                       </div>
-                      <Button
-                        size="xs"
-                        color="failure"
-                        outline
-                        onClick={() => deleteEmail(selectedDomain.id, em.id)}
-                        className="flex-shrink-0"
-                      >
-                        
-                      </Button>
-                    </div>
-                  </Card>
-                ))}
+                    </Card>
+                  );
+                })}
                 {selectedDomain.emails.length === 0 && (
                   <div className="text-center py-8 text-gray-500 text-sm">
                     <p>Noch keine E-Mail-Adressen</p>
