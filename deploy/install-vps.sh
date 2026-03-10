@@ -129,8 +129,12 @@ fi
 # ── Repo klonen / aktualisieren ───────────────────────────────
 if [ -d "${INSTALL_DIR}/.git" ]; then
     info "Repo existiert bereits – wird aktualisiert..."
-    git -C "${INSTALL_DIR}" pull origin main 2>/dev/null || git -C "${INSTALL_DIR}" pull origin master
-    ok "Repo aktualisiert"
+    DEFAULT_BRANCH=$(git -C "${INSTALL_DIR}" symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's|^origin/||')
+    DEFAULT_BRANCH=${DEFAULT_BRANCH:-main}
+    git -C "${INSTALL_DIR}" fetch origin
+    git -C "${INSTALL_DIR}" checkout "${DEFAULT_BRANCH}" 2>/dev/null || true
+    git -C "${INSTALL_DIR}" pull origin "${DEFAULT_BRANCH}"
+    ok "Repo aktualisiert (Branch: ${DEFAULT_BRANCH})"
 else
     info "Repo wird geklont..."
     git clone "${REPO_URL}" "${INSTALL_DIR}"

@@ -2,8 +2,19 @@
 # Domain Warming – Update Script (zieht direkt von GitHub)
 set -e
 
-GITHUB_BRANCH="claude/automate-domain-warming-7zLJg"
 APP_DIR="/opt/domain-warming"
+
+# Optional override: GITHUB_BRANCH=main sudo ./update.sh
+GITHUB_BRANCH="${GITHUB_BRANCH:-}"
+if [ -z "$GITHUB_BRANCH" ]; then
+  GITHUB_BRANCH=$(git -C "$APP_DIR" rev-parse --abbrev-ref HEAD 2>/dev/null || true)
+fi
+if [ -z "$GITHUB_BRANCH" ] || [ "$GITHUB_BRANCH" = "HEAD" ]; then
+  GITHUB_BRANCH=$(git -C "$APP_DIR" symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's|^origin/||')
+fi
+if [ -z "$GITHUB_BRANCH" ]; then
+  GITHUB_BRANCH="main"
+fi
 
 echo ">>> Stoppe Services..."
 systemctl stop warming-backend warming-worker warming-scheduler warming-frontend
