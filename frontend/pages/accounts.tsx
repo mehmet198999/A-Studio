@@ -4,7 +4,7 @@ import Layout from "../components/Layout";
 import {
   Alert, Badge, Button, Card, Checkbox, Label,
   Modal, ModalBody, ModalHeader,
-  Select, Spinner,
+  Select, Spinner, Textarea,
   Table, TableBody, TableCell, TableHead, TableHeadCell, TableRow,
   TextInput,
 } from "flowbite-react";
@@ -50,6 +50,10 @@ export default function AccountsPage() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [newAcc, setNewAcc] = useState({ email: "", password: "", provider: "outlook" });
   const [addError, setAddError] = useState("");
+  const [showBatchModal, setShowBatchModal] = useState(false);
+  const [batchText, setBatchText] = useState("");
+  const [batchImporting, setBatchImporting] = useState(false);
+  const [batchResult, setBatchResult] = useState<any>(null);
   const [showCsvInfo, setShowCsvInfo] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -145,6 +149,32 @@ export default function AccountsPage() {
     else alert(`Fehler: ${data.detail || JSON.stringify(data)}`);
   };
 
+  const handleBatchImport = async () => {
+    const entries = batchText.trim().split(/[\s\n]+/).filter(Boolean);
+    const lines = entries.map((entry) => {
+      const idx = entry.indexOf(":");
+      if (idx === -1) return null;
+      const email = entry.slice(0, idx);
+      const password = entry.slice(idx + 1);
+      return `${email},${password}`;
+    }).filter(Boolean);
+    if (lines.length === 0) return;
+    const csv = "email,password\n" + lines.join("\n");
+    const file = new File([csv], "batch.csv", { type: "text/csv" });
+    const formData = new FormData();
+    formData.append("file", file);
+    setBatchImporting(true);
+    setBatchResult(null);
+    try {
+      const res = await fetch(`${API}/accounts/import?auto_oauth2=${autoOAuth2}`, {
+        method: "POST", headers: authHeader(), body: formData,
+      });
+      const data = await res.json();
+      setBatchResult(data);
+      fetchAccounts();
+    } finally { setBatchImporting(false); }
+  };
+
   const addSingle = async (e: React.FormEvent) => {
     e.preventDefault();
     setAddError("");
@@ -177,6 +207,9 @@ export default function AccountsPage() {
         <div className="flex flex-wrap gap-2">
           <Button color="gray" size="sm" onClick={() => setShowAddModal(true)}>
              Einzeln hinzufügen
+          </Button>
+          <Button color="purple" size="sm" onClick={() => { setShowBatchModal(true); setBatchResult(null); setBatchText(""); }}>
+            Batch hinzufügen
           </Button>
           <input ref={fileRef} type="file" accept=".csv" onChange={handleCsvImport} className="hidden" />
           <Button color="blue" size="sm" onClick={() => fileRef.current?.click()} disabled={csvImporting}>
@@ -391,6 +424,41 @@ export default function AccountsPage() {
           </div>
         </>
       )}
+
+      {/* Batch Import Modal */}
+      <Modal show={showBatchModal} onClose={() => setShowBatchModal(false)} size="lg" className="bg-gray-950/80">
+        <ModalHeader className="bg-gray-900 border-gray-800 text-gray-100">Batch hinzufügen</ModalHeader>
+        <ModalBody className="bg-gray-900 border-gray-800">
+          <p className="text-xs text-gray-400 mb-2">
+            Format: <code className="text-green-400 bg-gray-800 px-1 rounded">email:passwort</code> — durch Leerzeichen oder Zeilenumbruch getrennt
+          </p>
+          <Textarea
+            rows={8}
+            placeholder={"rdainpny@duhastmail.com:aWcfNVjzm1pvg\nlojsexxg@fuhrenmail.com:P7WEUoSC7R5ID\n..."}
+            value={batchText}
+            onChange={(e) => setBatchText(e.target.value)}
+            className="font-mono text-xs bg-gray-800 border-gray-700 text-gray-100 focus:border-blue-500 focus:ring-blue-500"
+          />
+          <label className="flex items-center gap-2 cursor-pointer mt-3">
+            <Checkbox checked={autoOAuth2} onChange={(e) => setAutoOAuth2(e.target.checked)} />
+            <span className="text-sm text-gray-300">Outlook → OAuth2 automatisch</span>
+          </label>
+          {batchResult && (
+            <Alert color={batchResult.errors?.length > 0 ? "warning" : "success"} className="mt-3">
+              <span className="font-bold">{batchResult.created} importiert</span>
+              {batchResult.oauth2_tokens_fetched > 0 && <span className="ml-3">{batchResult.oauth2_tokens_fetched}x OAuth2</span>}
+              {batchResult.errors?.length > 0 && <span className="ml-3">{batchResult.errors.length} Fehler</span>}
+              {batchResult.errors?.slice(0, 5).map((e: string, i: number) => <p key={i} className="text-xs mt-1">{e}</p>)}
+            </Alert>
+          )}
+          <div className="flex gap-2 justify-end mt-4">
+            <Button color="gray" onClick={() => setShowBatchModal(false)}>Schließen</Button>
+            <Button color="purple" onClick={handleBatchImport} disabled={batchImporting || !batchText.trim()}>
+              {batchImporting ? <><Spinner size="xs" className="mr-1.5" /> Importiere...</> : `${batchText.trim().split(/[\s\n]+/).filter(e => e.includes(":")).length} Accounts importieren`}
+            </Button>
+          </div>
+        </ModalBody>
+      </Modal>
 
       {/* Add Account Modal */}
       <Modal show={showAddModal} onClose={() => { setShowAddModal(false); setAddError(""); }}
