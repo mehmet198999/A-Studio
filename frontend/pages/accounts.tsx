@@ -116,7 +116,7 @@ export default function AccountsPage() {
     await fetch(`${API}/accounts/bulk-delete`, {
       method: "POST",
       headers: { ...authHeader(), "Content-Type": "application/json" },
-      body: JSON.stringify([...selected]),
+      body: JSON.stringify(Array.from(selected)),
     });
     fetchAccounts();
   };
@@ -125,7 +125,7 @@ export default function AccountsPage() {
     await fetch(`${API}/accounts/bulk-toggle?active=${active}`, {
       method: "POST",
       headers: { ...authHeader(), "Content-Type": "application/json" },
-      body: JSON.stringify([...selected]),
+      body: JSON.stringify(Array.from(selected)),
     });
     fetchAccounts();
   };
@@ -134,7 +134,8 @@ export default function AccountsPage() {
     setTestingId(id);
     try {
       const res = await fetch(`${API}/accounts/${id}/test`, { method: "POST", headers: authHeader() });
-      setTestResult((p) => ({ ...p, [id]: await res.json() }));
+      const data = await res.json();
+      setTestResult((p) => ({ ...p, [id]: data }));
     } finally { setTestingId(null); }
   };
 
