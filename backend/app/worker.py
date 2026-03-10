@@ -1,72 +1,17 @@
+"""
+RQ Worker entry point.
+Run with: python -m app.worker
+"""
+
 import os
-import tempfile
-from pathlib import Path
-from rq import Worker, Queue, Connection, get_current_job
-from redis import Redis
 
-from .git_utils import init_repo, create_branch, commit_all, push_branch
-from .tasks import job_db
+import redis
+from rq import Worker, Queue
 
-listen = ["default"]
-
-
-def process_feature_job(prompt: str, type: str) -> str:
-    """Process a feature generation job."""
-    job = get_current_job()
-    job_id = job.id if job else "manual"
-    entry = job_db.setdefault(
-        job_id,
-        {
-            "prompt": prompt,
-            "type": type,
-            "status": "queued",
-            "logs": [],
-            "score": None,
-            "preview_url": None,
-            "branch_url": None,
-        },
-    )
-    entry["status"] = "running"
-    logs = entry["logs"]
-
-    model = {
-        "qwen": "Qwen",
-        "deepseek": "DeepSeek",
-        "llama": "Llama",
-        "frontend": "Qwen",
-        "backend": "DeepSeek",
-        "doku": "Llama",
-    }.get(type.lower(), "Qwen")
-    logs.append(f"Selected model {model}")
-
-    tmpdir = tempfile.mkdtemp()
-    repo = init_repo(tmpdir)
-    branch_name = f"feature-{job_id}"
-    try:
-        create_branch(repo, branch_name)
-        Path(tmpdir, "feature.txt").write_text(f"{prompt} using {model}")
-        commit_hash = commit_all(repo, f"Add feature with {model}")
-        logs.append(f"Committed {commit_hash}")
-        push_branch(repo, branch_name)
-        logs.append("Pushed branch")
-        entry["score"] = len(prompt)
-        preview_domain = os.environ.get("PREVIEW_DOMAIN", "app.a-server.ch")
-        entry["preview_url"] = f"https://{branch_name}.{preview_domain}"
-        entry["branch_url"] = f"https://example.com/{branch_name}"
-        entry["status"] = "done"
-        return commit_hash
-    except Exception as e:  # pragma: no cover - exercised via integration
-        logs.append(f"Error: {e}")
-        entry["status"] = "failed"
-        return ""
-
-
-def run_worker() -> None:
-    redis_conn = Redis.from_url(os.environ["REDIS_URL"])
-    with Connection(redis_conn):
-        worker = Worker(list(map(Queue, listen)))
-        worker.work()
-
+REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
+conn = redis.from_url(REDIS_URL)
 
 if __name__ == "__main__":
-    run_worker()
+    queues = [Queue(connection=conn)]
+    worker = Worker(queues, connection=conn)
+    worker.work()
