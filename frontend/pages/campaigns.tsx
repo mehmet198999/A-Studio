@@ -60,7 +60,7 @@ export default function CampaignsPage() {
         body: JSON.stringify(form),
       });
       if (!res.ok) { const d = await res.json(); throw new Error(d.detail); }
-      setForm({ name: "", emails_per_day_start: 5, emails_per_day_max: 50, ramp_up_days: 30 });
+      setForm({ name: "", emails_per_day_start: 5, emails_per_day_max: 50, ramp_up_days: 30, start_delay_days: 3 });
       setShowForm(false);
       fetchCampaigns();
     } catch (e: any) {

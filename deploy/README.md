@@ -56,8 +56,10 @@ systemctl restart warming-backend warming-worker warming-scheduler
 
 ### Update (zieht von GitHub)
 ```bash
-sudo /opt/domain-warming/deploy/hestiacp/update.sh
+GITHUB_BRANCH=main sudo /opt/domain-warming/deploy/hestiacp/update.sh
 ```
+
+Hinweis: Das Skript nutzt automatisch den aktuell ausgecheckten Branch. Mit `GITHUB_BRANCH=...` können Sie ihn explizit setzen.
 
 ---
 

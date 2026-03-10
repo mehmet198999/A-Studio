@@ -152,7 +152,9 @@ def detect_provider(email: str) -> str:
         return "gmail"
     if domain in {"outlook.com", "hotmail.com", "live.com", "msn.com",
                   "live.de", "hotmail.de", "outlook.de", "live.at", "hotmail.at",
-                  "live.fr", "hotmail.fr", "live.co.uk", "hotmail.co.uk"}:
+                  "live.fr", "hotmail.fr", "live.co.uk", "hotmail.co.uk",
+                  "outlook.fr", "outlook.co.uk", "outlook.at", "outlook.es",
+                  "hotmail.es", "hotmial.com"}:
         return "outlook"
     if domain in {"firstmail.ltd"}:
         return "firstmail"
