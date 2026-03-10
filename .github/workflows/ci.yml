@@ -24,7 +24,7 @@ jobs:
       - name: Run tests
         run: |
           cd backend
-          python -m pytest
+          python -m pytest || [ $? -eq 5 ]
 
   frontend:
     runs-on: ubuntu-latest

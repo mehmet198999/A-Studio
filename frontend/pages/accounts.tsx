@@ -52,6 +52,9 @@ export default function AccountsPage() {
   const [addError, setAddError] = useState("");
   const [showBatchModal, setShowBatchModal] = useState(false);
   const [batchText, setBatchText] = useState("");
+  const [batchSmtpHost, setBatchSmtpHost] = useState("");
+  const [batchSmtpPort, setBatchSmtpPort] = useState("587");
+  const [batchImapHost, setBatchImapHost] = useState("");
   const [batchImporting, setBatchImporting] = useState(false);
   const [batchResult, setBatchResult] = useState<any>(null);
   const [showCsvInfo, setShowCsvInfo] = useState(false);
@@ -143,23 +146,33 @@ export default function AccountsPage() {
   };
 
   const fetchSingleOAuth2 = async (id: number) => {
-    const res = await fetch(`${API}/accounts/${id}/fetch-oauth2`, { method: "POST", headers: authHeader() });
-    const data = await res.json();
-    if (data.status === "ok") { alert(`OAuth2 Token für ${data.email} erfolgreich!`); fetchAccounts(); }
-    else alert(`Fehler: ${data.detail || JSON.stringify(data)}`);
+    try {
+      const res = await fetch(`${API}/accounts/${id}/fetch-oauth2`, { method: "POST", headers: authHeader() });
+      const data = await res.json();
+      if (data.status === "ok") { alert(`OAuth2 Token für ${data.email} erfolgreich!`); fetchAccounts(); }
+      else alert(`Fehler: ${data.detail || JSON.stringify(data)}`);
+    } catch (e: any) { alert(`Verbindungsfehler: ${e.message}`); }
   };
 
   const handleBatchImport = async () => {
     const entries = batchText.trim().split(/[\s\n]+/).filter(Boolean);
+    const hasCustomSmtp = batchSmtpHost.trim() !== "";
+    const headers = hasCustomSmtp
+      ? "email,password,smtp_host,smtp_port,imap_host,imap_port"
+      : "email,password";
     const lines = entries.map((entry) => {
       const idx = entry.indexOf(":");
       if (idx === -1) return null;
       const email = entry.slice(0, idx);
       const password = entry.slice(idx + 1);
+      if (hasCustomSmtp) {
+        const imapHost = batchImapHost.trim() || batchSmtpHost.trim().replace(/^smtp\./, "imap.");
+        return `${email},${password},${batchSmtpHost.trim()},${batchSmtpPort.trim()},${imapHost},993`;
+      }
       return `${email},${password}`;
     }).filter(Boolean);
     if (lines.length === 0) return;
-    const csv = "email,password\n" + lines.join("\n");
+    const csv = headers + "\n" + lines.join("\n");
     const file = new File([csv], "batch.csv", { type: "text/csv" });
     const formData = new FormData();
     formData.append("file", file);
@@ -433,12 +446,51 @@ export default function AccountsPage() {
             Format: <code className="text-green-400 bg-gray-800 px-1 rounded">email:passwort</code> — durch Leerzeichen oder Zeilenumbruch getrennt
           </p>
           <Textarea
-            rows={8}
+            rows={7}
             placeholder={"rdainpny@duhastmail.com:aWcfNVjzm1pvg\nlojsexxg@fuhrenmail.com:P7WEUoSC7R5ID\n..."}
             value={batchText}
             onChange={(e) => setBatchText(e.target.value)}
             className="font-mono text-xs bg-gray-800 border-gray-700 text-gray-100 focus:border-blue-500 focus:ring-blue-500"
           />
+          {/* Custom SMTP/IMAP (optional, für custom domains) */}
+          <div className="mt-3 p-3 bg-gray-800/60 rounded-lg border border-gray-700">
+            <p className="text-xs font-semibold text-gray-400 mb-2">SMTP/IMAP Server <span className="font-normal text-gray-500">(optional — nur für Custom-Domains)</span></p>
+            <div className="grid grid-cols-3 gap-2">
+              <div className="col-span-2">
+                <Label className="text-xs text-gray-400">SMTP Host</Label>
+                <TextInput
+                  sizing="sm"
+                  placeholder="smtp.firstmail.ltd"
+                  value={batchSmtpHost}
+                  onChange={(e) => setBatchSmtpHost(e.target.value)}
+                  className="mt-0.5"
+                  theme={{ field: { input: { base: "block w-full border", colors: { gray: "bg-gray-700 border-gray-600 text-gray-100 focus:border-blue-500 focus:ring-blue-500" } } } }}
+                />
+              </div>
+              <div>
+                <Label className="text-xs text-gray-400">Port</Label>
+                <TextInput
+                  sizing="sm"
+                  placeholder="465"
+                  value={batchSmtpPort}
+                  onChange={(e) => setBatchSmtpPort(e.target.value)}
+                  className="mt-0.5"
+                  theme={{ field: { input: { base: "block w-full border", colors: { gray: "bg-gray-700 border-gray-600 text-gray-100 focus:border-blue-500 focus:ring-blue-500" } } } }}
+                />
+              </div>
+              <div className="col-span-3">
+                <Label className="text-xs text-gray-400">IMAP Host <span className="text-gray-500">(leer = smtp.→imap. auto)</span></Label>
+                <TextInput
+                  sizing="sm"
+                  placeholder="imap.firstmail.ltd"
+                  value={batchImapHost}
+                  onChange={(e) => setBatchImapHost(e.target.value)}
+                  className="mt-0.5"
+                  theme={{ field: { input: { base: "block w-full border", colors: { gray: "bg-gray-700 border-gray-600 text-gray-100 focus:border-blue-500 focus:ring-blue-500" } } } }}
+                />
+              </div>
+            </div>
+          </div>
           <label className="flex items-center gap-2 cursor-pointer mt-3">
             <Checkbox checked={autoOAuth2} onChange={(e) => setAutoOAuth2(e.target.checked)} />
             <span className="text-sm text-gray-300">Outlook → OAuth2 automatisch</span>

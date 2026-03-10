@@ -248,11 +248,20 @@ async def import_accounts_csv(
             else:
                 auth_type_val = "password"
 
+            smtp_host = row.get("smtp_host", "").strip() or None
+            smtp_port_raw = row.get("smtp_port", "").strip()
+            imap_host = row.get("imap_host", "").strip() or None
+            imap_port_raw = row.get("imap_port", "").strip()
+
             data = WarmingAccountCreate(
                 email=email,
                 password=password,
                 provider=ProviderEnum(provider_val),
                 auth_type=AuthTypeEnum(auth_type_val),
+                smtp_host=smtp_host,
+                smtp_port=int(smtp_port_raw) if smtp_port_raw.isdigit() else None,
+                imap_host=imap_host,
+                imap_port=int(imap_port_raw) if imap_port_raw.isdigit() else None,
             )
             data = _apply_provider_defaults(data)
 
