@@ -25,6 +25,7 @@ from .models import (
 )
 from .reputation_service import check_domain_reputation
 from .schemas import (
+    AccountTextImportRequest,
     CampaignCreate,
     CampaignOut,
     DailyStatPoint,
@@ -159,6 +160,53 @@ def _apply_provider_defaults(data: WarmingAccountCreate) -> WarmingAccountCreate
     return data
 
 
+def _create_account_from_credentials(
+    db: Session,
+    email: str,
+    password: Optional[str],
+    auto_oauth2: bool,
+    line_label: str,
+) -> tuple[Optional[WarmingAccount], bool, Optional[str]]:
+    """Create warming account from email/password with provider autodetection."""
+    provider_val = detect_provider(email)
+
+    if provider_val == "gmail":
+        auth_type_val = "app_password"
+    elif provider_val == "outlook" and auto_oauth2:
+        auth_type_val = "oauth2"
+    else:
+        auth_type_val = "password"
+
+    data = WarmingAccountCreate(
+        email=email,
+        password=password,
+        provider=ProviderEnum(provider_val),
+        auth_type=AuthTypeEnum(auth_type_val),
+    )
+    data = _apply_provider_defaults(data)
+
+    existing = db.query(WarmingAccount).filter(WarmingAccount.email == data.email).first()
+    if existing:
+        return None, False, f"{line_label}: {email} existiert bereits"
+
+    account = WarmingAccount(**data.model_dump())
+    oauth2_ok = False
+
+    if auto_oauth2 and provider_val == "outlook" and password:
+        try:
+            tok = get_outlook_token_ropc(email, password)
+            account.oauth2_access_token = tok["access_token"]
+            account.oauth2_refresh_token = tok["refresh_token"]
+            account.oauth2_token_expiry = tok["token_expiry"]
+            account.auth_type = AuthTypeEnum.oauth2
+            account.password = None
+            oauth2_ok = True
+        except Exception as e:
+            return None, False, f"{line_label}: OAuth2 für {email} fehlgeschlagen – {e}"
+
+    return account, oauth2_ok, None
+
+
 @app.get("/accounts", response_model=List[WarmingAccountOut], dependencies=[Depends(verify_token)])
 def list_accounts(
     provider: Optional[str] = None,
@@ -189,7 +237,7 @@ def create_account(data: WarmingAccountCreate, db: Session = Depends(get_db)):
 @app.post("/accounts/import", dependencies=[Depends(verify_token)])
 async def import_accounts_csv(
     file: UploadFile,
-    auto_oauth2: bool = False,
+    auto_oauth2: bool = True,
     db: Session = Depends(get_db),
 ):
     """
@@ -223,56 +271,77 @@ async def import_accounts_csv(
                 continue
 
             password = row.get("password", "").strip() or None
-
-            # Auto-detect provider from email domain
-            raw_provider = row.get("provider", "").strip().lower()
-            provider_val = raw_provider if raw_provider in ("outlook", "gmail", "firstmail", "custom") \
-                else detect_provider(email)
-
-            # Auto-set auth_type
-            raw_auth = row.get("auth_type", "").strip().lower()
-            if raw_auth in ("password", "app_password", "oauth2"):
-                auth_type_val = raw_auth
-            elif provider_val == "gmail":
-                auth_type_val = "app_password"
-            elif provider_val == "outlook" and auto_oauth2:
-                auth_type_val = "oauth2"
-            else:
-                auth_type_val = "password"
-
-            data = WarmingAccountCreate(
+            account, got_oauth2, err = _create_account_from_credentials(
+                db=db,
                 email=email,
                 password=password,
-                provider=ProviderEnum(provider_val),
-                auth_type=AuthTypeEnum(auth_type_val),
+                auto_oauth2=auto_oauth2,
+                line_label=f"Zeile {i+2}",
             )
-            data = _apply_provider_defaults(data)
-
-            existing = db.query(WarmingAccount).filter(WarmingAccount.email == data.email).first()
-            if existing:
-                errors.append(f"Zeile {i+2}: {email} existiert bereits")
+            if err:
+                errors.append(err)
                 continue
-
-            account = WarmingAccount(**data.model_dump())
-
-            # Auto-fetch Outlook OAuth2 token if requested
-            if auto_oauth2 and provider_val == "outlook" and password:
-                try:
-                    tok = get_outlook_token_ropc(email, password)
-                    account.oauth2_access_token = tok["access_token"]
-                    account.oauth2_refresh_token = tok["refresh_token"]
-                    account.oauth2_token_expiry = tok["token_expiry"]
-                    account.auth_type = AuthTypeEnum.oauth2
-                    account.password = None  # Don't store plain password
-                    oauth2_ok += 1
-                except Exception as e:
-                    errors.append(f"Zeile {i+2}: OAuth2 für {email} fehlgeschlagen – {e}")
-                    account.auth_type = AuthTypeEnum.password  # Fall back
 
             db.add(account)
             created += 1
+            if got_oauth2:
+                oauth2_ok += 1
         except Exception as e:
             errors.append(f"Zeile {i+2}: {e}")
+
+    db.commit()
+    return {"created": created, "oauth2_tokens_fetched": oauth2_ok, "errors": errors}
+
+
+@app.post("/accounts/import-text", dependencies=[Depends(verify_token)])
+def import_accounts_text(
+    data: AccountTextImportRequest,
+    auto_oauth2: bool = True,
+    db: Session = Depends(get_db),
+):
+    """
+    Import accounts from plain text lines in format:
+        email:password
+
+    Empty lines and lines starting with # are ignored.
+    Provider + SMTP/IMAP are auto-detected from email domain.
+    """
+    created = 0
+    oauth2_ok = 0
+    errors = []
+
+    for i, raw_line in enumerate(data.lines.splitlines()):
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+
+        if ":" not in line:
+            errors.append(f"Zeile {i+1}: Format ungültig, erwartet email:password")
+            continue
+
+        email, password = line.split(":", 1)
+        email = email.strip()
+        password = password.strip() or None
+
+        if not email or "@" not in email:
+            errors.append(f"Zeile {i+1}: Ungültige Email")
+            continue
+
+        account, got_oauth2, err = _create_account_from_credentials(
+            db=db,
+            email=email,
+            password=password,
+            auto_oauth2=auto_oauth2,
+            line_label=f"Zeile {i+1}",
+        )
+        if err:
+            errors.append(err)
+            continue
+
+        db.add(account)
+        created += 1
+        if got_oauth2:
+            oauth2_ok += 1
 
     db.commit()
     return {"created": created, "oauth2_tokens_fetched": oauth2_ok, "errors": errors}

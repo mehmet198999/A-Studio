@@ -69,6 +69,12 @@ class WarmingAccountOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+
+
+class AccountTextImportRequest(BaseModel):
+    lines: str
+
+
 class WarmingAccountUpdate(BaseModel):
     password: Optional[str] = None
     auth_type: Optional[AuthTypeEnum] = None
