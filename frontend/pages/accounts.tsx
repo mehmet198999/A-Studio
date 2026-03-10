@@ -48,6 +48,8 @@ export default function AccountsPage() {
   const [filter, setFilter] = useState("all");
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [csvImporting, setCsvImporting] = useState(false);
+  const [txtImporting, setTxtImporting] = useState(false);
+  const [pasteInput, setPasteInput] = useState("");
   const [autoOAuth2, setAutoOAuth2] = useState(true);
   const [importResult, setImportResult] = useState<any>(null);
   const [bulkOAuth2Running, setBulkOAuth2Running] = useState(false);
@@ -88,6 +90,26 @@ export default function AccountsPage() {
     } finally {
       setCsvImporting(false);
       if (fileRef.current) fileRef.current.value = "";
+    }
+  };
+
+
+
+  const handleTextImport = async () => {
+    if (!pasteInput.trim()) return;
+    setTxtImporting(true);
+    setImportResult(null);
+    try {
+      const res = await fetch(`${API}/accounts/import-text?auto_oauth2=${autoOAuth2}`, {
+        method: "POST",
+        headers: { ...authHeader(), "Content-Type": "application/json" },
+        body: JSON.stringify({ lines: pasteInput }),
+      });
+      setImportResult(await res.json());
+      setPasteInput("");
+      fetchAccounts();
+    } finally {
+      setTxtImporting(false);
     }
   };
 
@@ -216,6 +238,27 @@ export default function AccountsPage() {
           </div>
         </div>
       </div>
+
+      <div className="bg-gray-900/60 border border-gray-800 rounded-lg p-4 mb-4">
+        <p className="text-xs font-semibold text-gray-300 mb-2">Batch-Import per Text (email:passwort je Zeile)</p>
+        <textarea
+          value={pasteInput}
+          onChange={(e) => setPasteInput(e.target.value)}
+          placeholder={`mail1@hotmail.com:passwort123\nmail2@gmail.com:abcd efgh ijkl mnop\nmail3@firstmail.ltd:passwort`}
+          className="w-full h-28 bg-gray-800 border border-gray-700 rounded px-3 py-2 text-xs font-mono text-gray-200 focus:outline-none focus:border-blue-500"
+        />
+        <div className="mt-2 flex items-center justify-between">
+          <p className="text-xs text-gray-500">Server/Provider wird automatisch erkannt (Gmail, Outlook/Hotmail, Firstmail).</p>
+          <button
+            onClick={handleTextImport}
+            disabled={txtImporting || !pasteInput.trim()}
+            className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs px-3 py-1.5 rounded"
+          >
+            {txtImporting ? "Importiere..." : "Text importieren"}
+          </button>
+        </div>
+      </div>
+
 
       {/* Import result */}
       {importResult && (
