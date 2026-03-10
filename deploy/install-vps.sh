@@ -1,6 +1,8 @@
 #!/bin/bash
 # ============================================================
-#  Domain Warming – Installations-Script für blanken Ubuntu VPS
+#  Domain Warming – Installations-Script
+#  Unterstützt: Ubuntu 20/22/24, Debian 11/12,
+#               CentOS 8/9, AlmaLinux, Rocky Linux
 #  Aufruf: bash install-vps.sh
 # ============================================================
 set -e
@@ -27,15 +29,29 @@ echo ""
 # ── Root prüfen ───────────────────────────────────────────────
 [ "$EUID" -ne 0 ] && err "Bitte als root ausführen: sudo bash install-vps.sh"
 
-# ── Ubuntu prüfen ─────────────────────────────────────────────
+# ── Distro erkennen ───────────────────────────────────────────
 . /etc/os-release
-[[ "$ID" != "ubuntu" ]] && warn "Dieses Script ist für Ubuntu optimiert. Fortfahren auf eigene Gefahr."
+DISTRO_ID="${ID}"
+DISTRO_LIKE="${ID_LIKE:-}"
+
+if [[ "$DISTRO_ID" == "ubuntu" || "$DISTRO_ID" == "debian" || "$DISTRO_LIKE" == *"debian"* ]]; then
+    PKG_MANAGER="apt"
+elif [[ "$DISTRO_ID" == "centos" || "$DISTRO_ID" == "rhel" || \
+        "$DISTRO_ID" == "almalinux" || "$DISTRO_ID" == "rocky" || \
+        "$DISTRO_LIKE" == *"rhel"* || "$DISTRO_LIKE" == *"fedora"* ]]; then
+    PKG_MANAGER="dnf"
+    command -v dnf &>/dev/null || PKG_MANAGER="yum"
+else
+    err "Nicht unterstützte Distribution: ${DISTRO_ID}. Unterstützt: Ubuntu, Debian, CentOS, AlmaLinux, Rocky."
+fi
+
+ok "Distribution erkannt: ${PRETTY_NAME} → Paketmanager: ${PKG_MANAGER}"
 
 # ── Server-IP ermitteln ───────────────────────────────────────
 SERVER_IP=$(hostname -I | awk '{print $1}')
 info "Erkannte Server-IP: ${SERVER_IP}"
 
-# ── Passwörter konfigurieren ──────────────────────────────────
+# ── Konfiguration ─────────────────────────────────────────────
 echo ""
 echo -e "${YELLOW}══ Konfiguration ══════════════════════════════${NC}"
 
@@ -56,19 +72,23 @@ echo ""
 
 # ── System aktualisieren ──────────────────────────────────────
 info "System wird aktualisiert..."
-apt-get update -qq
-apt-get upgrade -y -qq
+if [ "$PKG_MANAGER" = "apt" ]; then
+    apt-get update -qq
+    apt-get upgrade -y -qq
+else
+    $PKG_MANAGER update -y -q
+fi
 ok "System aktualisiert"
 
-# ── Pakete installieren ───────────────────────────────────────
+# ── Basis-Pakete installieren ─────────────────────────────────
 info "Basis-Pakete werden installiert..."
-apt-get install -y -qq \
-    curl \
-    git \
-    ufw \
-    ca-certificates \
-    gnupg \
-    lsb-release
+if [ "$PKG_MANAGER" = "apt" ]; then
+    apt-get install -y -qq curl git ufw ca-certificates gnupg lsb-release
+else
+    $PKG_MANAGER install -y -q curl git ca-certificates gnupg
+    # firewalld statt ufw auf RHEL-basierten Systemen
+    $PKG_MANAGER install -y -q firewalld 2>/dev/null || true
+fi
 ok "Basis-Pakete installiert"
 
 # ── Docker installieren ───────────────────────────────────────
@@ -76,32 +96,40 @@ if command -v docker &>/dev/null; then
     ok "Docker bereits installiert ($(docker --version | cut -d' ' -f3 | tr -d ','))"
 else
     info "Docker wird installiert..."
-    install -m 0755 -d /etc/apt/keyrings
-    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | \
-        gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-    chmod a+r /etc/apt/keyrings/docker.gpg
-
-    echo \
-        "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] \
-        https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
-        tee /etc/apt/sources.list.d/docker.list > /dev/null
-
-    apt-get update -qq
-    apt-get install -y -qq docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+    if [ "$PKG_MANAGER" = "apt" ]; then
+        install -m 0755 -d /etc/apt/keyrings
+        curl -fsSL https://download.docker.com/linux/${DISTRO_ID}/gpg | \
+            gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+        chmod a+r /etc/apt/keyrings/docker.gpg
+        echo \
+            "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] \
+            https://download.docker.com/linux/${DISTRO_ID} \
+            $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
+            tee /etc/apt/sources.list.d/docker.list > /dev/null
+        apt-get update -qq
+        apt-get install -y -qq docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+    else
+        # CentOS / AlmaLinux / Rocky
+        $PKG_MANAGER install -y -q yum-utils 2>/dev/null || true
+        yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo 2>/dev/null || \
+            $PKG_MANAGER config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+        $PKG_MANAGER install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+    fi
     systemctl enable docker
     systemctl start docker
     ok "Docker installiert"
 fi
 
-# Docker Compose Alias (falls 'docker compose' nicht direkt nutzbar)
+# Docker Compose Alias
 if ! command -v docker-compose &>/dev/null; then
-    ln -sf /usr/libexec/docker/cli-plugins/docker-compose /usr/local/bin/docker-compose 2>/dev/null || true
+    ln -sf /usr/libexec/docker/cli-plugins/docker-compose /usr/local/bin/docker-compose 2>/dev/null || \
+    ln -sf /usr/lib/docker/cli-plugins/docker-compose /usr/local/bin/docker-compose 2>/dev/null || true
 fi
 
 # ── Repo klonen / aktualisieren ───────────────────────────────
 if [ -d "${INSTALL_DIR}/.git" ]; then
     info "Repo existiert bereits – wird aktualisiert..."
-    git -C "${INSTALL_DIR}" pull origin master
+    git -C "${INSTALL_DIR}" pull origin main 2>/dev/null || git -C "${INSTALL_DIR}" pull origin master
     ok "Repo aktualisiert"
 else
     info "Repo wird geklont..."
@@ -133,11 +161,22 @@ ok "docker-compose.yml angepasst"
 
 # ── Firewall konfigurieren ────────────────────────────────────
 info "Firewall wird konfiguriert..."
-ufw allow 22/tcp comment 'SSH'    > /dev/null
-ufw allow 3000/tcp comment 'Frontend' > /dev/null
-ufw allow 8000/tcp comment 'Backend API' > /dev/null
-echo "y" | ufw enable > /dev/null 2>&1 || true
-ok "Firewall: Port 22, 3000, 8000 freigegeben"
+if command -v ufw &>/dev/null; then
+    ufw allow 22/tcp  comment 'SSH'          > /dev/null
+    ufw allow 3000/tcp comment 'Frontend'    > /dev/null
+    ufw allow 8000/tcp comment 'Backend API' > /dev/null
+    echo "y" | ufw enable > /dev/null 2>&1 || true
+    ok "ufw: Port 22, 3000, 8000 freigegeben"
+elif command -v firewall-cmd &>/dev/null; then
+    systemctl enable --now firewalld 2>/dev/null || true
+    firewall-cmd --permanent --add-port=22/tcp   > /dev/null
+    firewall-cmd --permanent --add-port=3000/tcp > /dev/null
+    firewall-cmd --permanent --add-port=8000/tcp > /dev/null
+    firewall-cmd --reload > /dev/null
+    ok "firewalld: Port 22, 3000, 8000 freigegeben"
+else
+    warn "Kein Firewall-Tool gefunden – Ports bitte manuell freigeben (22, 3000, 8000)"
+fi
 
 # ── Docker Container bauen & starten ─────────────────────────
 info "Container werden gebaut... (kann einige Minuten dauern)"
