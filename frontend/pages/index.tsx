@@ -320,7 +320,7 @@ export default function Dashboard() {
       <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 mb-6">
         <div className="flex items-center justify-between mb-4">
           <h2 className="font-semibold text-sm">E-Mails der letzten 14 Tage</h2>
-          <div className="flex items-center gap-4 text-xs text-gray-500">
+          <div className="flex flex-wrap items-center gap-3 text-xs text-gray-500">
             <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-blue-500 inline-block" /> Gesendet</span>
             <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-yellow-500 inline-block" /> Geöffnet</span>
             <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-green-500 inline-block" /> Beantwortet</span>

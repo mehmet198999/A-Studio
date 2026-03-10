@@ -114,7 +114,7 @@ export default function CampaignsPage() {
         <h1 className="text-xl font-bold">Kampagnen</h1>
         <button
           onClick={() => setShowForm(!showForm)}
-          className="bg-blue-600 hover:bg-blue-700 text-white text-sm px-3 py-1.5 rounded transition-colors"
+          className="bg-blue-600 hover:bg-blue-700 text-white text-sm px-3 py-2 rounded transition-colors"
         >
           + Neue Kampagne
         </button>
@@ -249,7 +249,7 @@ export default function CampaignsPage() {
               </div>
 
               {/* Actions */}
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 {c.status !== "active" && (
                   <button
                     onClick={() => action(c.id, "start")}
