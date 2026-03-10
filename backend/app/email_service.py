@@ -257,9 +257,11 @@ def check_inbox_for_message(account, search_criteria: str = "UNSEEN") -> list[di
 def mark_as_read(account, uid: str) -> None:
     """Mark an email as read via IMAP."""
     imap = _get_imap(account)
-    imap.select("INBOX")
-    imap.store(uid, "+FLAGS", "\\Seen")
-    imap.logout()
+    try:
+        imap.select("INBOX")
+        imap.store(uid, "+FLAGS", "\\Seen")
+    finally:
+        imap.logout()
 
 
 def test_connection(account) -> dict:

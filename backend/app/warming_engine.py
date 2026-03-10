@@ -24,7 +24,7 @@ def calculate_emails_today(campaign: WarmingCampaign) -> int:
     During start_delay_days: return 0 (preparation phase, no sends).
     After delay: ramp up linearly from start to max over ramp_up_days.
     """
-    delay = getattr(campaign, "start_delay_days", 3)
+    delay = getattr(campaign, "start_delay_days", 0)
     day = campaign.current_day
 
     if day < delay:

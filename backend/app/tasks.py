@@ -160,8 +160,13 @@ def check_domain_inbox(
                 target["subject"],
                 delay_seconds=delay,
             )
-
-        return {"status": "replied", "log_id": log_id}
+            return {"status": "replied", "log_id": log_id}
+        else:
+            # No message found in inbox – mark log as error
+            log.status = LogStatusEnum.error
+            log.error_message = "Domain-Posteingang: keine passende E-Mail gefunden (evtl. noch nicht zugestellt)"
+            db.commit()
+            return {"status": "not_found", "log_id": log_id}
 
     except Exception as e:
         db.rollback()
@@ -225,8 +230,13 @@ def check_warming_account_inbox(
 
             log.status = LogStatusEnum.replied
             db.commit()
-
-        return {"status": "completed", "log_id": log_id}
+            return {"status": "completed", "log_id": log_id}
+        else:
+            # No reply found – mark log as error so dashboard shows it
+            log.status = LogStatusEnum.error
+            log.error_message = "Warming-Account-Posteingang: keine Antwort gefunden"
+            db.commit()
+            return {"status": "not_found", "log_id": log_id}
 
     except Exception as e:
         db.rollback()
