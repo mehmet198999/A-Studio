@@ -38,6 +38,9 @@ services:
         condition: service_started
     networks:
       - web
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
     restart: unless-stopped
 
   worker:
@@ -53,6 +56,9 @@ services:
         condition: service_started
     networks:
       - web
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
     restart: unless-stopped
 
   scheduler:
@@ -68,6 +74,9 @@ services:
         condition: service_started
     networks:
       - web
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
     restart: unless-stopped
 
   frontend:
