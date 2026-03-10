@@ -43,7 +43,7 @@ export default function CampaignsPage() {
     emails_per_day_start: 5,
     emails_per_day_max: 50,
     ramp_up_days: 30,
-    start_delay_days: 3,
+    start_delay_days: 0,
   });
   const [showModal, setShowModal] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -73,7 +73,7 @@ export default function CampaignsPage() {
         body: JSON.stringify(form),
       });
       if (!res.ok) { const d = await res.json(); throw new Error(d.detail); }
-      setForm({ name: "", emails_per_day_start: 5, emails_per_day_max: 50, ramp_up_days: 30, start_delay_days: 3 });
+      setForm({ name: "", emails_per_day_start: 5, emails_per_day_max: 50, ramp_up_days: 30, start_delay_days: 0 });
       setShowModal(false);
       fetchCampaigns();
     } catch (e: any) {

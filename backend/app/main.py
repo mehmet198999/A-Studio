@@ -444,7 +444,9 @@ def start_campaign(campaign_id: int, db: Session = Depends(get_db)):
     if not campaign:
         raise HTTPException(status_code=404, detail="Campaign not found")
     campaign.status = CampaignStatusEnum.active
-    campaign.start_date = campaign.start_date or datetime.utcnow()
+    if campaign.start_date is None:
+        campaign.start_date = datetime.utcnow()
+        campaign.current_day = 0  # Reset day counter on first start
     db.commit()
     db.refresh(campaign)
     return campaign
@@ -482,7 +484,8 @@ def run_campaign_now(campaign_id: int, db: Session = Depends(get_db)):
     if not campaign:
         raise HTTPException(status_code=404, detail="Campaign not found")
 
-    count = calculate_emails_today(campaign)
+    # For manual runs, always send at least emails_per_day_start (bypasses start_delay)
+    count = max(calculate_emails_today(campaign), campaign.emails_per_day_start)
     pairs = get_warming_pairs(db, campaign, count)
 
     enqueued = 0
