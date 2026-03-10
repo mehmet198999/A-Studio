@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import Layout from "../components/Layout";
+import { Badge, Button, Card, Spinner, Table, TableBody, TableCell, TableHead, TableHeadCell, TableRow } from "flowbite-react";
 
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -23,12 +24,12 @@ interface Log {
   created_at: string;
 }
 
-const statusBadge: Record<string, string> = {
-  sent: "bg-blue-900/50 text-blue-300",
-  received: "bg-purple-900/50 text-purple-300",
-  opened: "bg-yellow-900/50 text-yellow-300",
-  replied: "bg-green-900/50 text-green-300",
-  error: "bg-red-900/50 text-red-300",
+const statusColor: Record<string, "blue" | "purple" | "warning" | "success" | "failure" | "gray"> = {
+  sent: "blue",
+  received: "purple",
+  opened: "warning",
+  replied: "success",
+  error: "failure",
 };
 
 export default function LogsPage() {
@@ -53,7 +54,6 @@ export default function LogsPage() {
     const params = new URLSearchParams();
     if (statusFilter !== "all") params.set("status", statusFilter);
     params.set("limit", "200");
-
     const res = await fetch(`${API}/logs?${params}`, { headers: authHeader() });
     if (res.status === 401) { router.push("/login"); return; }
     setLogs(await res.json());
@@ -61,7 +61,7 @@ export default function LogsPage() {
   };
 
   const fmt = (dt: string | null) =>
-    dt ? new Date(dt).toLocaleString("de-DE", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "-";
+    dt ? new Date(dt).toLocaleString("de-DE", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "–";
 
   const counts = logs.reduce((acc, l) => {
     acc[l.status] = (acc[l.status] || 0) + 1;
@@ -70,115 +70,98 @@ export default function LogsPage() {
 
   return (
     <Layout>
-      <div className="flex items-center justify-between mb-4">
-        <h1 className="text-xl font-bold">Logs ({logs.length})</h1>
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+        <h1 className="text-xl font-bold">Logs <span className="text-sm font-normal text-gray-500">({logs.length})</span></h1>
         <div className="flex items-center gap-3">
           <label className="flex items-center gap-2 text-xs text-gray-400 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={autoRefresh}
-              onChange={(e) => setAutoRefresh(e.target.checked)}
-              className="accent-blue-500"
-            />
-            <span className="hidden sm:inline">Auto-Refresh (10s)</span>
-            <span className="sm:hidden">Auto</span>
+            <input type="checkbox" checked={autoRefresh} onChange={(e) => setAutoRefresh(e.target.checked)}
+              className="w-4 h-4 accent-blue-500" />
+            Auto (10s)
           </label>
-          <button onClick={fetchLogs} className="text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 px-3 py-1.5 rounded">
-            ↻
-          </button>
+          <Button color="gray" size="xs" onClick={fetchLogs}>
+            
+          </Button>
         </div>
       </div>
 
-      {/* Summary */}
-      <div className="flex gap-2 mb-4 flex-wrap">
+      {/* Summary badges */}
+      <div className="flex flex-wrap gap-2 mb-4">
         {["sent", "opened", "replied", "error"].map((s) => (
-          <div key={s} className={`px-3 py-1.5 rounded text-xs font-medium ${statusBadge[s] || "bg-gray-800 text-gray-400"}`}>
+          <Badge key={s} color={statusColor[s] ?? "gray"}>
             {s}: {counts[s] || 0}
-          </div>
+          </Badge>
         ))}
       </div>
 
       {/* Filter */}
-      <div className="flex gap-2 mb-4 overflow-x-auto pb-1">
+      <div className="flex flex-wrap gap-1.5 mb-4">
         {["all", "sent", "received", "opened", "replied", "error"].map((s) => (
-          <button
-            key={s}
-            onClick={() => setStatusFilter(s)}
-            className={`flex-shrink-0 text-xs px-3 py-1.5 rounded-full transition-colors ${
-              statusFilter === s ? "bg-blue-600 text-white" : "bg-gray-800 text-gray-400 hover:bg-gray-700"
-            }`}
-          >
+          <Button key={s} size="xs" color={statusFilter === s ? "blue" : "gray"} onClick={() => setStatusFilter(s)}>
             {s === "all" ? "Alle" : s}
-          </button>
+          </Button>
         ))}
       </div>
 
       {loading ? (
-        <div className="text-center py-16 text-gray-500">Lade Logs...</div>
+        <div className="flex items-center justify-center h-40 gap-3 text-gray-500">
+          <Spinner size="md" /> Lade Logs...
+        </div>
       ) : logs.length === 0 ? (
-        <div className="text-center py-16 text-gray-500">Keine Logs gefunden</div>
+        <Card className="bg-gray-900 border-gray-800 shadow-none">
+          <div className="text-center py-12 text-gray-500">Keine Logs gefunden</div>
+        </Card>
       ) : (
         <>
           {/* Mobile: Cards */}
           <div className="md:hidden space-y-2">
             {logs.map((log) => (
-              <div key={log.id} className="bg-gray-900 border border-gray-800 rounded-lg p-3">
-                <div className="flex items-start justify-between gap-2 mb-2">
-                  <span className={`px-2 py-0.5 rounded text-xs font-medium flex-shrink-0 ${statusBadge[log.status] || "bg-gray-800 text-gray-400"}`}>
-                    {log.status}
-                  </span>
-                  <span className="text-xs text-gray-600">#{log.id} · Kampagne #{log.campaign_id}</span>
+              <Card key={log.id} className="bg-gray-900 border-gray-800 shadow-none">
+                <div className="flex items-start justify-between gap-2 mb-1">
+                  <Badge color={statusColor[log.status] ?? "gray"} size="xs">{log.status}</Badge>
+                  <span className="text-xs text-gray-600">#{log.id} · Kamp. #{log.campaign_id}</span>
                 </div>
                 <p className="text-sm text-gray-300 truncate">{log.subject || "–"}</p>
-                {log.error_message && (
-                  <p className="text-red-400 text-xs mt-1 line-clamp-2">{log.error_message}</p>
-                )}
-                <div className="flex gap-4 mt-2 text-xs text-gray-500">
+                {log.error_message && <p className="text-red-400 text-xs mt-1 line-clamp-2">{log.error_message}</p>}
+                <div className="flex flex-wrap gap-3 mt-2 text-xs text-gray-500">
                   {log.sent_at && <span>↑ {fmt(log.sent_at)}</span>}
                   {log.opened_at && <span>👁 {fmt(log.opened_at)}</span>}
                   {log.replied_at && <span>↩ {fmt(log.replied_at)}</span>}
                 </div>
-              </div>
+              </Card>
             ))}
           </div>
 
           {/* Desktop: Table */}
-          <div className="hidden md:block bg-gray-900 border border-gray-800 rounded-lg overflow-hidden">
-            <table className="w-full text-sm">
-              <thead className="bg-gray-800/50">
-                <tr>
-                  <th className="text-left px-4 py-2 text-gray-400 font-medium">ID</th>
-                  <th className="text-left px-4 py-2 text-gray-400 font-medium">Betreff</th>
-                  <th className="text-left px-4 py-2 text-gray-400 font-medium">Status</th>
-                  <th className="text-left px-4 py-2 text-gray-400 font-medium">Kampagne</th>
-                  <th className="text-left px-4 py-2 text-gray-400 font-medium">Gesendet</th>
-                  <th className="text-left px-4 py-2 text-gray-400 font-medium">Geöffnet</th>
-                  <th className="text-left px-4 py-2 text-gray-400 font-medium">Beantwortet</th>
-                </tr>
-              </thead>
-              <tbody>
+          <div className="hidden md:block overflow-x-auto">
+            <Table className="bg-gray-900 border border-gray-800 rounded-lg overflow-hidden">
+              <TableHead className="bg-gray-800/50">
+                <TableHeadCell className="text-gray-400">ID</TableHeadCell>
+                <TableHeadCell className="text-gray-400">Betreff</TableHeadCell>
+                <TableHeadCell className="text-gray-400">Status</TableHeadCell>
+                <TableHeadCell className="text-gray-400">Kampagne</TableHeadCell>
+                <TableHeadCell className="text-gray-400">Gesendet</TableHeadCell>
+                <TableHeadCell className="text-gray-400">Geöffnet</TableHeadCell>
+                <TableHeadCell className="text-gray-400">Beantwortet</TableHeadCell>
+              </TableHead>
+              <TableBody className="divide-y divide-gray-800">
                 {logs.map((log) => (
-                  <tr key={log.id} className="border-t border-gray-800/50 hover:bg-gray-800/20">
-                    <td className="px-4 py-2 text-gray-500 text-xs">#{log.id}</td>
-                    <td className="px-4 py-2 max-w-xs">
-                      <p className="truncate text-gray-300">{log.subject || "-"}</p>
-                      {log.error_message && (
-                        <p className="text-red-400 text-xs truncate">{log.error_message}</p>
-                      )}
-                    </td>
-                    <td className="px-4 py-2">
-                      <span className={`px-2 py-0.5 rounded text-xs font-medium ${statusBadge[log.status] || "bg-gray-800 text-gray-400"}`}>
-                        {log.status}
-                      </span>
-                    </td>
-                    <td className="px-4 py-2 text-gray-400 text-xs">#{log.campaign_id}</td>
-                    <td className="px-4 py-2 text-gray-500 text-xs">{fmt(log.sent_at)}</td>
-                    <td className="px-4 py-2 text-gray-500 text-xs">{fmt(log.opened_at)}</td>
-                    <td className="px-4 py-2 text-gray-500 text-xs">{fmt(log.replied_at)}</td>
-                  </tr>
+                  <TableRow key={log.id} className="bg-gray-900 hover:bg-gray-800/30">
+                    <TableCell className="text-gray-500 text-xs">#{log.id}</TableCell>
+                    <TableCell className="max-w-xs">
+                      <p className="truncate text-gray-300 text-sm">{log.subject || "–"}</p>
+                      {log.error_message && <p className="text-red-400 text-xs truncate">{log.error_message}</p>}
+                    </TableCell>
+                    <TableCell>
+                      <Badge color={statusColor[log.status] ?? "gray"} size="xs">{log.status}</Badge>
+                    </TableCell>
+                    <TableCell className="text-gray-400 text-xs">#{log.campaign_id}</TableCell>
+                    <TableCell className="text-gray-500 text-xs">{fmt(log.sent_at)}</TableCell>
+                    <TableCell className="text-gray-500 text-xs">{fmt(log.opened_at)}</TableCell>
+                    <TableCell className="text-gray-500 text-xs">{fmt(log.replied_at)}</TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           </div>
         </>
       )}

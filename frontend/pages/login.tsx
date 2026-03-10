@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useRouter } from "next/router";
+import { Button, Card, Label, TextInput, Alert } from "flowbite-react";
 
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -32,39 +33,62 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-950">
-      <div className="bg-gray-900 border border-gray-800 rounded-xl p-8 w-full max-w-sm">
-        <h1 className="text-2xl font-bold text-blue-400 mb-6 text-center">Domain Warming</h1>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-xs text-gray-400 mb-1">Benutzername</label>
-            <input
-              type="text"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm text-gray-100 focus:outline-none focus:border-blue-500"
-              required
-            />
-          </div>
-          <div>
-            <label className="block text-xs text-gray-400 mb-1">Passwort</label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm text-gray-100 focus:outline-none focus:border-blue-500"
-              required
-            />
-          </div>
-          {error && <p className="text-red-400 text-xs">{error}</p>}
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-medium py-2 rounded transition-colors"
-          >
-            {loading ? "Anmelden..." : "Anmelden"}
-          </button>
-        </form>
+    <div className="min-h-screen flex items-center justify-center bg-gray-950 p-4">
+      <div className="w-full max-w-sm">
+        <div className="text-center mb-6">
+          <h1 className="text-3xl font-bold text-blue-400">Domain Warming</h1>
+          <p className="text-gray-500 text-sm mt-1">Melde dich an um fortzufahren</p>
+        </div>
+        <Card className="bg-gray-900 border-gray-800">
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <Label htmlFor="username" className="text-gray-300" >Benutzername</Label>
+              <TextInput
+                id="username"
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                required
+                className="mt-1"
+                theme={{
+                  field: {
+                    input: {
+                      base: "block w-full border disabled:cursor-not-allowed disabled:opacity-50",
+                      colors: { gray: "bg-gray-800 border-gray-700 text-gray-100 focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-800 dark:border-gray-600 dark:text-white dark:placeholder-gray-400 dark:focus:border-blue-500 dark:focus:ring-blue-500" },
+                    },
+                  },
+                }}
+              />
+            </div>
+            <div>
+              <Label htmlFor="password" className="text-gray-300" >Passwort</Label>
+              <TextInput
+                id="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                className="mt-1"
+                theme={{
+                  field: {
+                    input: {
+                      base: "block w-full border disabled:cursor-not-allowed disabled:opacity-50",
+                      colors: { gray: "bg-gray-800 border-gray-700 text-gray-100 focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-800 dark:border-gray-600 dark:text-white dark:placeholder-gray-400 dark:focus:border-blue-500 dark:focus:ring-blue-500" },
+                    },
+                  },
+                }}
+              />
+            </div>
+            {error && (
+              <Alert color="failure">
+                <span className="font-medium">{error}</span>
+              </Alert>
+            )}
+            <Button type="submit" color="blue" disabled={loading} className="w-full">
+              {loading ? "Anmelden..." : "Anmelden"}
+            </Button>
+          </form>
+        </Card>
       </div>
     </div>
   );

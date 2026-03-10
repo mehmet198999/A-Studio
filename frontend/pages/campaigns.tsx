@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import Layout from "../components/Layout";
+import { Alert, Badge, Button, Card, Label, Modal, ModalBody, ModalHeader, Progress, Spinner, TextInput } from "flowbite-react";
 
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -22,6 +23,18 @@ interface Campaign {
   created_at: string;
 }
 
+const statusColor: Record<string, "success" | "warning" | "gray"> = {
+  active: "success",
+  paused: "warning",
+  stopped: "gray",
+};
+
+const statusLabel: Record<string, string> = {
+  active: "Aktiv",
+  paused: "Pausiert",
+  stopped: "Gestoppt",
+};
+
 export default function CampaignsPage() {
   const router = useRouter();
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
@@ -32,7 +45,7 @@ export default function CampaignsPage() {
     ramp_up_days: 30,
     start_delay_days: 3,
   });
-  const [showForm, setShowForm] = useState(false);
+  const [showModal, setShowModal] = useState(false);
   const [loading, setLoading] = useState(false);
   const [runningNow, setRunningNow] = useState<number | null>(null);
   const [runResult, setRunResult] = useState<Record<number, string>>({});
@@ -60,8 +73,8 @@ export default function CampaignsPage() {
         body: JSON.stringify(form),
       });
       if (!res.ok) { const d = await res.json(); throw new Error(d.detail); }
-      setForm({ name: "", emails_per_day_start: 5, emails_per_day_max: 50, ramp_up_days: 30 });
-      setShowForm(false);
+      setForm({ name: "", emails_per_day_start: 5, emails_per_day_max: 50, ramp_up_days: 30, start_delay_days: 3 });
+      setShowModal(false);
       fetchCampaigns();
     } catch (e: any) {
       setError(e.message);
@@ -92,12 +105,6 @@ export default function CampaignsPage() {
     fetchCampaigns();
   };
 
-  const statusBadge: Record<string, string> = {
-    active: "bg-green-900/50 text-green-300 border border-green-700",
-    paused: "bg-yellow-900/50 text-yellow-300 border border-yellow-700",
-    stopped: "bg-gray-800 text-gray-400 border border-gray-700",
-  };
-
   const progressPercent = (c: Campaign) =>
     Math.min(100, Math.round((c.current_day / c.ramp_up_days) * 100));
 
@@ -108,193 +115,175 @@ export default function CampaignsPage() {
     return Math.max(1, c.emails_per_day_start + Math.round((c.emails_per_day_max - c.emails_per_day_start) * ratio));
   };
 
+  const inputTheme = { field: { input: { base: "block w-full border", colors: { gray: "bg-gray-800 border-gray-700 text-gray-100 focus:border-blue-500 focus:ring-blue-500" } } } };
+
   return (
     <Layout>
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-xl font-bold">Kampagnen</h1>
-        <button
-          onClick={() => setShowForm(!showForm)}
-          className="bg-blue-600 hover:bg-blue-700 text-white text-sm px-3 py-2 rounded transition-colors"
-        >
-          + Neue Kampagne
-        </button>
+        <Button color="blue" size="sm" onClick={() => setShowModal(true)}>
+           Neue Kampagne
+        </Button>
       </div>
 
-      {showForm && (
-        <form onSubmit={createCampaign} className="bg-gray-900 border border-gray-700 rounded-lg p-5 mb-6">
-          <h2 className="font-semibold mb-4">Neue Kampagne erstellen</h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-            <div className="col-span-2 md:col-span-4">
-              <label className="text-xs text-gray-400">Name der Kampagne</label>
-              <input
-                type="text"
-                required
-                placeholder="z.B. Meine Domain Aufwärmung"
-                value={form.name}
-                onChange={(e) => setForm({ ...form, name: e.target.value })}
-                className="w-full mt-1 bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
-              />
-            </div>
-            <div>
-              <label className="text-xs text-gray-400">E-Mails/Tag (Start)</label>
-              <input
-                type="number"
-                min={1}
-                max={200}
-                value={form.emails_per_day_start}
-                onChange={(e) => setForm({ ...form, emails_per_day_start: Number(e.target.value) })}
-                className="w-full mt-1 bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
-              />
-            </div>
-            <div>
-              <label className="text-xs text-gray-400">E-Mails/Tag (Maximum)</label>
-              <input
-                type="number"
-                min={1}
-                max={500}
-                value={form.emails_per_day_max}
-                onChange={(e) => setForm({ ...form, emails_per_day_max: Number(e.target.value) })}
-                className="w-full mt-1 bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
-              />
-            </div>
-            <div>
-              <label className="text-xs text-gray-400">Ramp-up (Tage)</label>
-              <input
-                type="number"
-                min={1}
-                max={90}
-                value={form.ramp_up_days}
-                onChange={(e) => setForm({ ...form, ramp_up_days: Number(e.target.value) })}
-                className="w-full mt-1 bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
-              />
-            </div>
-            <div>
-              <label className="text-xs text-gray-400">Wartezeit (Tage)</label>
-              <input
-                type="number"
-                min={0}
-                max={14}
-                value={form.start_delay_days}
-                onChange={(e) => setForm({ ...form, start_delay_days: Number(e.target.value) })}
-                className="w-full mt-1 bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
-              />
-              <p className="text-xs text-gray-600 mt-1">Tage vor erstem Send (Empfehlung: 3–4)</p>
-            </div>
-          </div>
-          {error && <p className="text-red-400 text-xs mb-3">{error}</p>}
-          <div className="flex gap-2">
-            <button type="submit" disabled={loading} className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-4 py-2 rounded text-sm">
-              Kampagne erstellen
-            </button>
-            <button type="button" onClick={() => setShowForm(false)} className="text-gray-400 hover:text-gray-200 px-4 py-2 rounded text-sm">
-              Abbrechen
-            </button>
-          </div>
-        </form>
-      )}
-
-      <div className="space-y-4">
-        {campaigns.length === 0 ? (
-          <div className="text-center py-16 text-gray-500">
+      {campaigns.length === 0 ? (
+        <Card className="bg-gray-900 border-gray-800 shadow-none">
+          <div className="text-center py-12 text-gray-500">
             <p className="text-lg mb-2">Noch keine Kampagnen</p>
-            <p className="text-sm">Erstellen Sie eine Kampagne um das Domain-Warming zu starten</p>
+            <p className="text-sm mb-4">Erstelle eine Kampagne um das Domain-Warming zu starten</p>
+            <Button color="blue" size="sm" onClick={() => setShowModal(true)}>
+               Erste Kampagne erstellen
+            </Button>
           </div>
-        ) : (
-          campaigns.map((c) => (
-            <div key={c.id} className="bg-gray-900 border border-gray-800 rounded-xl p-5">
-              <div className="flex items-start justify-between mb-3">
+        </Card>
+      ) : (
+        <div className="space-y-4">
+          {campaigns.map((c) => (
+            <Card key={c.id} className="bg-gray-900 border-gray-800 shadow-none">
+              {/* Title row */}
+              <div className="flex flex-wrap items-start justify-between gap-2 mb-1">
                 <div>
-                  <div className="flex items-center gap-3 mb-1">
+                  <div className="flex flex-wrap items-center gap-2 mb-1">
                     <h3 className="font-semibold text-base">{c.name}</h3>
-                    <span className={`px-2 py-0.5 rounded text-xs font-medium ${statusBadge[c.status]}`}>
-                      {c.status === "active" ? "Aktiv" : c.status === "paused" ? "Pausiert" : "Gestoppt"}
-                    </span>
+                    <Badge color={statusColor[c.status]}>{statusLabel[c.status]}</Badge>
                   </div>
                   <p className="text-xs text-gray-500">
-                    Tag {c.current_day}/{c.ramp_up_days + c.start_delay_days} · {
-                      c.current_day < c.start_delay_days
-                        ? `Vorbereitungsphase (${c.start_delay_days - c.current_day} Tage bis Start)`
-                        : `Heute ca. ${emailsToday(c)} E-Mails`
-                    }
+                    Tag {c.current_day}/{c.ramp_up_days + c.start_delay_days} ·{" "}
+                    {c.current_day < c.start_delay_days
+                      ? `Vorbereitungsphase (${c.start_delay_days - c.current_day} Tage bis Start)`
+                      : `Heute ca. ${emailsToday(c)} E-Mails`}
                     {c.start_date && ` · Gestartet: ${new Date(c.start_date).toLocaleDateString("de-DE")}`}
                   </p>
                 </div>
-                <button
-                  onClick={() => deleteCampaign(c.id)}
-                  className="text-gray-600 hover:text-red-400 text-xs transition-colors"
-                >
-                  Löschen
-                </button>
+                <Button size="xs" color="failure" outline onClick={() => deleteCampaign(c.id)}>
+                  
+                </Button>
               </div>
 
-              {/* Progress bar */}
+              {/* Progress */}
               <div className="mb-4">
                 <div className="flex justify-between text-xs text-gray-500 mb-1">
                   <span className="text-yellow-600">Vorbereitung ({c.start_delay_days}T)</span>
                   <span>{progressPercent(c)}% Ramp-up</span>
-                  <span>{c.emails_per_day_max} E-Mails/Tag</span>
+                  <span>{c.emails_per_day_max}/Tag max</span>
                 </div>
-                <div className="h-2 bg-gray-800 rounded-full overflow-hidden flex">
-                  {/* Delay phase indicator */}
-                  <div
-                    className="h-full bg-yellow-700 rounded-l-full"
-                    style={{ width: `${(c.start_delay_days / (c.start_delay_days + c.ramp_up_days)) * 100}%` }}
-                  />
-                  {/* Ramp-up progress */}
-                  <div
-                    className="h-full bg-blue-500"
-                    style={{ width: `${progressPercent(c) * (c.ramp_up_days / (c.start_delay_days + c.ramp_up_days))}%` }}
-                  />
-                </div>
+                <Progress
+                  progress={Math.round((c.current_day / (c.ramp_up_days + c.start_delay_days)) * 100)}
+                  color={c.status === "active" ? "blue" : c.status === "paused" ? "yellow" : "gray"}
+                  size="sm"
+                />
               </div>
 
               {/* Actions */}
               <div className="flex flex-wrap items-center gap-2">
                 {c.status !== "active" && (
-                  <button
-                    onClick={() => action(c.id, "start")}
-                    className="bg-green-700 hover:bg-green-600 text-white text-xs px-3 py-1.5 rounded transition-colors"
-                  >
-                    Starten
-                  </button>
+                  <Button size="xs" color="success" onClick={() => action(c.id, "start")}>
+                     Starten
+                  </Button>
                 )}
                 {c.status === "active" && (
-                  <button
-                    onClick={() => action(c.id, "pause")}
-                    className="bg-yellow-700 hover:bg-yellow-600 text-white text-xs px-3 py-1.5 rounded transition-colors"
-                  >
-                    Pausieren
-                  </button>
+                  <Button size="xs" color="warning" onClick={() => action(c.id, "pause")}>
+                     Pausieren
+                  </Button>
                 )}
                 {c.status !== "stopped" && (
-                  <button
-                    onClick={() => action(c.id, "stop")}
-                    className="bg-red-800 hover:bg-red-700 text-white text-xs px-3 py-1.5 rounded transition-colors"
-                  >
-                    Stoppen
-                  </button>
+                  <Button size="xs" color="failure" outline onClick={() => action(c.id, "stop")}>
+                     Stoppen
+                  </Button>
                 )}
-                <button
-                  onClick={() => runNow(c.id)}
-                  disabled={runningNow === c.id}
-                  className="bg-blue-800 hover:bg-blue-700 disabled:opacity-50 text-white text-xs px-3 py-1.5 rounded transition-colors"
-                >
-                  {runningNow === c.id ? "Starte..." : "Jetzt ausführen"}
-                </button>
+                <Button size="xs" color="blue" outline onClick={() => runNow(c.id)} disabled={runningNow === c.id}>
+                  {runningNow === c.id ? <><Spinner size="xs" className="mr-1" /> Starte...</> : <> Jetzt ausführen</>}
+                </Button>
                 {runResult[c.id] && (
                   <span className="text-xs text-green-400">{runResult[c.id]}</span>
                 )}
-                <a
-                  href={`/logs?campaign=${c.id}`}
-                  className="text-xs text-gray-400 hover:text-gray-200 ml-2"
-                >
-                  Logs anzeigen →
+                <a href={`/logs?campaign=${c.id}`} className="text-xs text-gray-400 hover:text-gray-200 ml-auto">
+                  Logs →
                 </a>
               </div>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {/* Create Campaign Modal */}
+      <Modal show={showModal} onClose={() => { setShowModal(false); setError(""); }} size="lg">
+        <ModalHeader className="bg-gray-900 border-gray-800">Neue Kampagne erstellen</ModalHeader>
+        <ModalBody className="bg-gray-900 border-gray-800">
+          <form onSubmit={createCampaign} className="space-y-4">
+            <div>
+              <Label htmlFor="camp-name" className="text-gray-300" >Name der Kampagne</Label>
+              <TextInput
+                id="camp-name"
+                required
+                placeholder="z.B. Meine Domain Aufwärmung"
+                value={form.name}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
+                className="mt-1"
+                theme={inputTheme}
+              />
             </div>
-          ))
-        )}
-      </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="start-emails" className="text-gray-300" >E-Mails/Tag (Start)</Label>
+                <TextInput
+                  id="start-emails"
+                  type="number"
+                  min={1} max={200}
+                  value={form.emails_per_day_start}
+                  onChange={(e) => setForm({ ...form, emails_per_day_start: Number(e.target.value) })}
+                  className="mt-1"
+                  theme={inputTheme}
+                />
+              </div>
+              <div>
+                <Label htmlFor="max-emails" className="text-gray-300" >E-Mails/Tag (Maximum)</Label>
+                <TextInput
+                  id="max-emails"
+                  type="number"
+                  min={1} max={500}
+                  value={form.emails_per_day_max}
+                  onChange={(e) => setForm({ ...form, emails_per_day_max: Number(e.target.value) })}
+                  className="mt-1"
+                  theme={inputTheme}
+                />
+              </div>
+              <div>
+                <Label htmlFor="ramp-days" className="text-gray-300" >Ramp-up (Tage)</Label>
+                <TextInput
+                  id="ramp-days"
+                  type="number"
+                  min={1} max={90}
+                  value={form.ramp_up_days}
+                  onChange={(e) => setForm({ ...form, ramp_up_days: Number(e.target.value) })}
+                  className="mt-1"
+                  theme={inputTheme}
+                />
+              </div>
+              <div>
+                <Label htmlFor="delay-days" className="text-gray-300" >Wartezeit (Tage)</Label>
+                <TextInput
+                  id="delay-days"
+                  type="number"
+                  min={0} max={14}
+                  value={form.start_delay_days}
+                  onChange={(e) => setForm({ ...form, start_delay_days: Number(e.target.value) })}
+                  className="mt-1"
+                  theme={inputTheme}
+                />
+                <p className="text-xs text-gray-600 mt-1">Empfehlung: 3–4 Tage</p>
+              </div>
+            </div>
+            {error && <Alert color="failure">{error}</Alert>}
+            <div className="flex gap-2 justify-end">
+              <Button color="gray" onClick={() => { setShowModal(false); setError(""); }}>Abbrechen</Button>
+              <Button type="submit" color="blue" disabled={loading}>
+                {loading ? <><Spinner size="xs" className="mr-1.5" /> Erstelle...</> : <> Erstellen</>}
+              </Button>
+            </div>
+          </form>
+        </ModalBody>
+      </Modal>
     </Layout>
   );
 }

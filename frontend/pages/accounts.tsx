@@ -1,6 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/router";
 import Layout from "../components/Layout";
+import {
+  Alert, Badge, Button, Card, Checkbox, Label,
+  Modal, ModalBody, ModalHeader,
+  Select, Spinner,
+  Table, TableBody, TableCell, TableHead, TableHeadCell, TableRow,
+  TextInput,
+} from "flowbite-react";
 
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -20,32 +27,18 @@ interface Account {
   created_at: string;
 }
 
-const providerColors: Record<string, string> = {
-  outlook: "bg-blue-900/50 text-blue-300 border border-blue-800",
-  gmail: "bg-red-900/50 text-red-300 border border-red-800",
-  firstmail: "bg-green-900/50 text-green-300 border border-green-800",
-  custom: "bg-gray-800 text-gray-400 border border-gray-700",
+const providerColor: Record<string, "blue" | "red" | "green" | "gray"> = {
+  outlook: "blue",
+  gmail: "red",
+  firstmail: "green",
+  custom: "gray",
 };
-
-const authColors: Record<string, string> = {
-  oauth2: "text-green-400",
-  app_password: "text-yellow-400",
-  password: "text-gray-400",
-};
-
-function Badge({ label, count, color }: { label: string; count: number; color: string }) {
-  return (
-    <div className="bg-gray-900 border border-gray-800 rounded-lg px-3 py-2.5 text-center">
-      <p className={`text-xl font-bold ${color}`}>{count}</p>
-      <p className="text-xs text-gray-500 mt-0.5">{label}</p>
-    </div>
-  );
-}
 
 export default function AccountsPage() {
   const router = useRouter();
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [filter, setFilter] = useState("all");
+  const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [csvImporting, setCsvImporting] = useState(false);
   const [autoOAuth2, setAutoOAuth2] = useState(true);
@@ -54,9 +47,10 @@ export default function AccountsPage() {
   const [bulkOAuth2Result, setBulkOAuth2Result] = useState<any>(null);
   const [testingId, setTestingId] = useState<number | null>(null);
   const [testResult, setTestResult] = useState<Record<number, any>>({});
-  const [showAddForm, setShowAddForm] = useState(false);
+  const [showAddModal, setShowAddModal] = useState(false);
   const [newAcc, setNewAcc] = useState({ email: "", password: "", provider: "outlook" });
   const [addError, setAddError] = useState("");
+  const [showCsvInfo, setShowCsvInfo] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -105,7 +99,12 @@ export default function AccountsPage() {
     setSelected((prev) => { const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next; });
   };
 
-  const filtered = accounts.filter((a) => filter === "all" || a.provider === filter);
+  // filtered + searched
+  const filtered = accounts.filter((a) => {
+    const matchProvider = filter === "all" || a.provider === filter;
+    const matchSearch = !search || a.email.toLowerCase().includes(search.toLowerCase());
+    return matchProvider && matchSearch;
+  });
 
   const selectAll = () => {
     setSelected(selected.size === filtered.length ? new Set() : new Set(filtered.map((a) => a.id)));
@@ -157,7 +156,7 @@ export default function AccountsPage() {
       });
       if (!res.ok) { const d = await res.json(); throw new Error(d.detail); }
       setNewAcc({ email: "", password: "", provider: "outlook" });
-      setShowAddForm(false);
+      setShowAddModal(false);
       fetchAccounts();
     } catch (e: any) { setAddError(e.message); }
   };
@@ -170,274 +169,283 @@ export default function AccountsPage() {
 
   return (
     <Layout>
-      <div className="flex items-center justify-between mb-5">
-        <h1 className="text-xl font-bold">Accounts ({accounts.length})</h1>
-        <div className="flex gap-2">
-          <button onClick={() => setShowAddForm(!showAddForm)}
-            className="bg-gray-700 hover:bg-gray-600 text-white text-sm px-3 py-2 rounded">
-            + Einzeln
-          </button>
+      {/* Header */}
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
+        <h1 className="text-xl font-bold">Warming-Accounts
+          <span className="ml-2 text-sm font-normal text-gray-500">({accounts.length})</span>
+        </h1>
+        <div className="flex flex-wrap gap-2">
+          <Button color="gray" size="sm" onClick={() => setShowAddModal(true)}>
+             Einzeln hinzufügen
+          </Button>
           <input ref={fileRef} type="file" accept=".csv" onChange={handleCsvImport} className="hidden" />
-          <button onClick={() => fileRef.current?.click()} disabled={csvImporting}
-            className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-sm px-3 py-2 rounded">
-            {csvImporting ? "..." : "CSV"}
-          </button>
+          <Button color="blue" size="sm" onClick={() => fileRef.current?.click()} disabled={csvImporting}>
+            {csvImporting ? <><Spinner size="xs" className="mr-1.5" /> Importiere...</> : <> CSV Import</>}
+          </Button>
+          <Button color="gray" size="sm" onClick={() => setShowCsvInfo(!showCsvInfo)}>
+            CSV-Format
+          </Button>
         </div>
       </div>
 
       {/* Stats */}
       <div className="grid grid-cols-3 sm:grid-cols-5 gap-2 mb-5">
-        <Badge label="Outlook" count={outlookTotal} color="text-blue-400" />
-        <Badge label="Gmail" count={gmailTotal} color="text-red-400" />
-        <Badge label="Firstmail" count={firstmailTotal} color="text-green-400" />
-        <Badge label="OAuth2" count={oauth2Count} color="text-yellow-400" />
-        <Badge label="Aktiv" count={activeCount} color="text-green-400" />
+        {[
+          { label: "Outlook", count: outlookTotal, color: "blue" as const },
+          { label: "Gmail", count: gmailTotal, color: "red" as const },
+          { label: "Firstmail", count: firstmailTotal, color: "green" as const },
+          { label: "OAuth2", count: oauth2Count, color: "yellow" as const },
+          { label: "Aktiv", count: activeCount, color: "green" as const },
+        ].map((s) => (
+          <Card key={s.label} className="bg-gray-900 border-gray-800 shadow-none text-center p-3">
+            <p className={`text-2xl font-bold ${
+              s.color === "blue" ? "text-blue-400" :
+              s.color === "red" ? "text-red-400" :
+              s.color === "green" ? "text-green-400" :
+              s.color === "yellow" ? "text-yellow-400" : "text-gray-400"
+            }`}>{s.count}</p>
+            <p className="text-xs text-gray-500">{s.label}</p>
+          </Card>
+        ))}
       </div>
 
-      {/* CSV Info box */}
-      <div className="bg-gray-900/60 border border-gray-800 rounded-lg p-4 mb-4">
-        <p className="text-xs font-semibold text-gray-300 mb-1">CSV-Format:</p>
-        <code className="text-xs text-green-400 bg-gray-800 px-2 py-1 rounded block mb-2">email,password</code>
-        <div className="space-y-1 text-xs text-gray-500 mb-3">
-          <p><span className="text-blue-400">Outlook</span> → OAuth2-Token automatisch</p>
-          <p><span className="text-red-400">Gmail</span> → 16-stelliges App-Passwort</p>
-          <p><span className="text-green-400">Firstmail</span> → Normales Passwort (Port 465)</p>
-        </div>
-        <label className="flex items-center gap-2 cursor-pointer">
-          <input type="checkbox" checked={autoOAuth2} onChange={(e) => setAutoOAuth2(e.target.checked)}
-            className="w-4 h-4 accent-blue-500" />
-          <span className="text-sm text-gray-300">Outlook → OAuth2 automatisch</span>
-        </label>
-      </div>
+      {/* CSV info box (collapsible) */}
+      {showCsvInfo && (
+        <Card className="bg-gray-900/60 border-gray-800 shadow-none mb-4">
+          <p className="text-xs font-semibold text-gray-300 mb-1">CSV-Format (nur 2 Spalten nötig):</p>
+          <code className="text-xs text-green-400 bg-gray-800 px-2 py-1 rounded block mb-3">email,password</code>
+          <div className="space-y-1 text-xs text-gray-500 mb-3">
+            <p><span className="text-blue-400 font-medium">Outlook/Hotmail</span> → Provider auto erkannt, OAuth2-Token wird automatisch geholt</p>
+            <p><span className="text-red-400 font-medium">Gmail</span> → Passwort = 16-stelliges App-Passwort (Google Konto → Sicherheit → App-Passwörter)</p>
+            <p><span className="text-green-400 font-medium">Firstmail</span> → Normales Passwort, SMTP Port 465 SSL</p>
+          </div>
+          <label className="flex items-center gap-2 cursor-pointer">
+            <Checkbox checked={autoOAuth2} onChange={(e) => setAutoOAuth2(e.target.checked)} />
+            <span className="text-sm text-gray-300">Outlook → OAuth2 automatisch beim Import</span>
+          </label>
+        </Card>
+      )}
 
       {/* Import result */}
       {importResult && (
-        <div className={`mb-4 p-4 rounded-lg border text-sm ${importResult.errors?.length > 0 ? "bg-yellow-900/20 border-yellow-700" : "bg-green-900/20 border-green-700"}`}>
-          <div className="flex flex-wrap gap-4 mb-1">
-            <span className="text-green-400 font-bold">{importResult.created} importiert</span>
-            {importResult.oauth2_tokens_fetched > 0 && <span className="text-blue-400">{importResult.oauth2_tokens_fetched}x OAuth2</span>}
-            {importResult.errors?.length > 0 && <span className="text-red-400">{importResult.errors.length} Fehler</span>}
+        <Alert color={importResult.errors?.length > 0 ? "warning" : "success"} className="mb-4">
+          <div className="flex flex-wrap gap-4">
+            <span className="font-bold">{importResult.created} importiert</span>
+            {importResult.oauth2_tokens_fetched > 0 && <span>{importResult.oauth2_tokens_fetched}x OAuth2 aktiviert</span>}
+            {importResult.errors?.length > 0 && <span>{importResult.errors.length} Fehler</span>}
           </div>
-          {importResult.errors?.slice(0, 5).map((e: string, i: number) => <p key={i} className="text-red-400 text-xs">{e}</p>)}
-        </div>
+          {importResult.errors?.slice(0, 5).map((e: string, i: number) => <p key={i} className="text-xs mt-1">{e}</p>)}
+        </Alert>
       )}
 
-      {/* Single add form */}
-      {showAddForm && (
-        <form onSubmit={addSingle} className="bg-gray-900 border border-gray-700 rounded-lg p-4 mb-4 space-y-3">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs text-gray-400">E-Mail</label>
-              <input type="email" required value={newAcc.email}
-                onChange={(e) => setNewAcc({ ...newAcc, email: e.target.value })}
-                className="w-full mt-1 bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500" />
-            </div>
-            <div>
-              <label className="text-xs text-gray-400">Passwort</label>
-              <input type="password" value={newAcc.password}
-                onChange={(e) => setNewAcc({ ...newAcc, password: e.target.value })}
-                className="w-full mt-1 bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500" />
-            </div>
-            <div>
-              <label className="text-xs text-gray-400">Anbieter</label>
-              <select value={newAcc.provider} onChange={(e) => setNewAcc({ ...newAcc, provider: e.target.value })}
-                className="w-full mt-1 bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500">
-                <option value="outlook">Outlook</option>
-                <option value="gmail">Gmail</option>
-                <option value="firstmail">Firstmail</option>
-                <option value="custom">Custom</option>
-              </select>
-            </div>
-            <div className="flex items-end">
-              <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded text-sm">
-                Hinzufügen
-              </button>
-            </div>
-          </div>
-          {addError && <p className="text-red-400 text-xs">{addError}</p>}
-        </form>
-      )}
-
-      {/* Bulk OAuth2 box */}
-      <div className="bg-blue-900/20 border border-blue-800 rounded-lg p-3 mb-4">
+      {/* Bulk OAuth2 */}
+      <Card className="bg-blue-900/20 border-blue-800 shadow-none mb-4">
         <div className="flex flex-col sm:flex-row sm:items-center gap-3">
           <div className="flex-1">
-            <p className="text-sm font-medium text-blue-300">Outlook OAuth2 Batch</p>
-            <p className="text-xs text-gray-400 mt-0.5">Alle Outlook-Accounts → OAuth2-Token automatisch holen</p>
+            <p className="text-sm font-semibold text-blue-300">Outlook OAuth2 Batch-Umwandlung</p>
+            <p className="text-xs text-gray-400 mt-0.5">Alle Outlook-Accounts mit gespeichertem Passwort → OAuth2-Token automatisch holen</p>
           </div>
-          <button onClick={runBulkOAuth2} disabled={bulkOAuth2Running}
-            className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-sm px-4 py-2 rounded">
-            {bulkOAuth2Running ? "Läuft..." : "Batch starten"}
-          </button>
+          <Button color="blue" size="sm" onClick={runBulkOAuth2} disabled={bulkOAuth2Running}>
+            {bulkOAuth2Running ? <><Spinner size="xs" className="mr-1.5" /> Läuft...</> : "Batch starten"}
+          </Button>
         </div>
-      </div>
-
-      {bulkOAuth2Result && (
-        <div className="mb-4 bg-gray-900 border border-gray-800 rounded-lg p-3 text-xs">
-          <p className="font-medium mb-2 text-gray-300">{bulkOAuth2Result.processed} verarbeitet:</p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 max-h-40 overflow-y-auto">
+        {bulkOAuth2Result && (
+          <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-1 max-h-40 overflow-y-auto">
             {bulkOAuth2Result.results?.map((r: any, i: number) => (
-              <div key={i} className={`flex items-center gap-2 ${r.status === "ok" ? "text-green-400" : "text-red-400"}`}>
+              <div key={i} className={`flex items-center gap-2 text-xs ${r.status === "ok" ? "text-green-400" : "text-red-400"}`}>
                 <span>{r.status === "ok" ? "✓" : "✗"}</span>
-                <span className="truncate font-mono text-xs">{r.email}</span>
+                <span className="truncate font-mono">{r.email}</span>
               </div>
             ))}
           </div>
-        </div>
-      )}
+        )}
+      </Card>
 
-      {/* Filter tabs */}
-      <div className="flex items-center gap-2 mb-3 overflow-x-auto pb-1">
-        {["all", "outlook", "gmail", "firstmail"].map((p) => (
-          <button key={p} onClick={() => setFilter(p)}
-            className={`flex-shrink-0 text-xs px-3 py-1.5 rounded-full transition-colors ${
-              filter === p ? "bg-blue-600 text-white" : "bg-gray-800 text-gray-400 hover:bg-gray-700"
-            }`}>
-            {p === "all" ? `Alle (${accounts.length})` : `${p.charAt(0).toUpperCase() + p.slice(1)} (${accounts.filter(a => a.provider === p).length})`}
-          </button>
-        ))}
+      {/* Search + Filter */}
+      <div className="flex flex-col sm:flex-row gap-2 mb-3">
+        <TextInput
+          placeholder="E-Mail suchen..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="flex-1"
+          theme={{ field: { input: { base: "block w-full border disabled:cursor-not-allowed disabled:opacity-50", colors: { gray: "bg-gray-800 border-gray-700 text-gray-100 focus:border-blue-500 focus:ring-blue-500" } } } }}
+        />
+        <div className="flex gap-1.5 overflow-x-auto">
+          {["all", "outlook", "gmail", "firstmail"].map((p) => (
+            <Button key={p} size="xs" color={filter === p ? "blue" : "gray"} onClick={() => setFilter(p)} className="flex-shrink-0">
+              {p === "all" ? `Alle (${accounts.length})` : `${p.charAt(0).toUpperCase() + p.slice(1)} (${accounts.filter(a => a.provider === p).length})`}
+            </Button>
+          ))}
+        </div>
       </div>
 
       {/* Bulk action bar */}
       {selected.size > 0 && (
-        <div className="bg-blue-900/30 border border-blue-800 rounded-lg px-4 py-2 mb-3 flex flex-wrap items-center gap-2">
-          <span className="text-sm text-blue-300 font-medium">{selected.size} ausgewählt</span>
-          <button onClick={() => bulkToggle(true)} className="text-xs bg-green-700 hover:bg-green-600 text-white px-3 py-1.5 rounded">Aktivieren</button>
-          <button onClick={() => bulkToggle(false)} className="text-xs bg-yellow-700 hover:bg-yellow-600 text-white px-3 py-1.5 rounded">Deaktivieren</button>
-          <button onClick={bulkDelete} className="text-xs bg-red-800 hover:bg-red-700 text-white px-3 py-1.5 rounded">Löschen</button>
-          <button onClick={() => setSelected(new Set())} className="text-xs text-gray-400 hover:text-gray-200 ml-auto">✕</button>
+        <div className="bg-blue-900/30 border border-blue-800 rounded-lg px-4 py-2.5 mb-3 flex flex-wrap items-center gap-2">
+          <span className="text-sm text-blue-300 font-semibold">{selected.size} ausgewählt</span>
+          <Button size="xs" color="success" onClick={() => bulkToggle(true)}>Aktivieren</Button>
+          <Button size="xs" color="warning" onClick={() => bulkToggle(false)}>Deaktivieren</Button>
+          <Button size="xs" color="failure" onClick={bulkDelete}> Löschen</Button>
+          <button onClick={() => setSelected(new Set())} className="ml-auto text-xs text-gray-400 hover:text-gray-200">✕ Aufheben</button>
         </div>
       )}
 
-      {/* Mobile: Card list */}
-      <div className="md:hidden space-y-2">
-        <div className="flex items-center px-1 mb-1">
-          <input type="checkbox"
-            checked={selected.size === filtered.length && filtered.length > 0}
-            onChange={selectAll} className="accent-blue-500 mr-2" />
-          <span className="text-xs text-gray-500">Alle auswählen</span>
-        </div>
-        {filtered.length === 0 ? (
-          <div className="text-center py-10 text-gray-500 text-sm">
-            <p>Keine Accounts</p>
-            <p className="text-xs mt-1">CSV importieren oder einzeln hinzufügen</p>
+      {filtered.length === 0 ? (
+        <Card className="bg-gray-900 border-gray-800 shadow-none">
+          <div className="text-center py-8 text-gray-500">
+            <p className="mb-1">{search ? `Keine Accounts für "${search}"` : "Keine Accounts"}</p>
+            <p className="text-xs">CSV importieren oder einzeln hinzufügen</p>
           </div>
-        ) : (
-          filtered.map((acc) => (
-            <div key={acc.id}
-              className={`bg-gray-900 border rounded-lg p-3 ${selected.has(acc.id) ? "border-blue-600" : "border-gray-800"}`}>
-              <div className="flex items-start gap-3">
-                <input type="checkbox" checked={selected.has(acc.id)}
-                  onChange={() => toggleSelect(acc.id)} className="accent-blue-500 mt-1 flex-shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <p className="font-mono text-xs text-gray-200 truncate">{acc.email}</p>
-                  <div className="flex flex-wrap items-center gap-2 mt-1.5">
-                    <span className={`px-2 py-0.5 rounded text-xs font-medium ${providerColors[acc.provider] || "bg-gray-800 text-gray-400"}`}>
-                      {acc.provider}
-                    </span>
-                    <span className={`text-xs font-medium ${authColors[acc.auth_type] || "text-gray-400"}`}>
-                      {acc.auth_type === "oauth2" ? "OAuth2 ✓" : acc.auth_type === "app_password" ? "App-PW" : "Passwort"}
-                    </span>
-                    <span className={`text-xs px-2 py-0.5 rounded ${acc.active ? "bg-green-900/40 text-green-400" : "bg-gray-800 text-gray-500"}`}>
-                      {acc.active ? "Aktiv" : "Inaktiv"}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-3 mt-2">
-                    <button onClick={() => testConnection(acc.id)} disabled={testingId === acc.id}
-                      className="text-xs bg-gray-800 hover:bg-gray-700 text-blue-400 px-3 py-1.5 rounded disabled:opacity-50">
-                      {testingId === acc.id ? "Teste…" : "Verbindung testen"}
-                    </button>
-                    {testResult[acc.id] && (
-                      <span className={`text-xs ${testResult[acc.id].smtp && testResult[acc.id].imap ? "text-green-400" : "text-red-400"}`}>
-                        SMTP:{testResult[acc.id].smtp ? "✓" : "✗"} IMAP:{testResult[acc.id].imap ? "✓" : "✗"}
-                      </span>
-                    )}
-                    {acc.provider === "outlook" && acc.auth_type !== "oauth2" && (
-                      <button onClick={() => fetchSingleOAuth2(acc.id)}
-                        className="text-xs bg-yellow-900/30 hover:bg-yellow-900/50 text-yellow-400 px-3 py-1.5 rounded">
-                        → OAuth2
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </div>
+        </Card>
+      ) : (
+        <>
+          {/* Mobile cards */}
+          <div className="md:hidden space-y-2">
+            <div className="flex items-center gap-2 px-1 mb-1">
+              <Checkbox checked={selected.size === filtered.length && filtered.length > 0} onChange={selectAll} />
+              <span className="text-xs text-gray-500">Alle auswählen ({filtered.length})</span>
             </div>
-          ))
-        )}
-      </div>
-
-      {/* Desktop: Table */}
-      <div className="hidden md:block bg-gray-900 border border-gray-800 rounded-lg overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-gray-800/60">
-            <tr>
-              <th className="px-3 py-2 w-8">
-                <input type="checkbox"
-                  checked={selected.size === filtered.length && filtered.length > 0}
-                  onChange={selectAll} className="accent-blue-500" />
-              </th>
-              <th className="text-left px-3 py-2 text-gray-400 font-medium">E-Mail</th>
-              <th className="text-left px-3 py-2 text-gray-400 font-medium">Anbieter</th>
-              <th className="text-left px-3 py-2 text-gray-400 font-medium">Auth</th>
-              <th className="text-left px-3 py-2 text-gray-400 font-medium">Status</th>
-              <th className="text-left px-3 py-2 text-gray-400 font-medium">Aktionen</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.length === 0 ? (
-              <tr>
-                <td colSpan={6} className="px-4 py-12 text-center">
-                  <p className="text-gray-500 mb-2">Keine Accounts</p>
-                  <p className="text-gray-600 text-xs">CSV-Datei importieren oder einzeln hinzufügen</p>
-                </td>
-              </tr>
-            ) : (
-              filtered.map((acc) => (
-                <tr key={acc.id} className={`border-t border-gray-800/50 hover:bg-gray-800/20 ${selected.has(acc.id) ? "bg-blue-900/10" : ""}`}>
-                  <td className="px-3 py-2 text-center">
-                    <input type="checkbox" checked={selected.has(acc.id)}
-                      onChange={() => toggleSelect(acc.id)} className="accent-blue-500" />
-                  </td>
-                  <td className="px-3 py-2 font-mono text-xs text-gray-300">{acc.email}</td>
-                  <td className="px-3 py-2">
-                    <span className={`px-2 py-0.5 rounded text-xs font-medium ${providerColors[acc.provider] || "bg-gray-800 text-gray-400"}`}>
-                      {acc.provider}
-                    </span>
-                  </td>
-                  <td className="px-3 py-2">
-                    <span className={`text-xs font-medium ${authColors[acc.auth_type] || "text-gray-400"}`}>
-                      {acc.auth_type === "oauth2" ? "OAuth2 ✓" : acc.auth_type === "app_password" ? "App-PW" : "Passwort"}
-                    </span>
-                  </td>
-                  <td className="px-3 py-2">
-                    <span className={`text-xs px-2 py-0.5 rounded ${acc.active ? "bg-green-900/40 text-green-400" : "bg-gray-800 text-gray-500"}`}>
-                      {acc.active ? "Aktiv" : "Inaktiv"}
-                    </span>
-                  </td>
-                  <td className="px-3 py-2">
-                    <div className="flex items-center gap-2 text-xs">
-                      <button onClick={() => testConnection(acc.id)} disabled={testingId === acc.id}
-                        className="text-blue-400 hover:text-blue-300 disabled:opacity-50">
-                        {testingId === acc.id ? "…" : "Test"}
-                      </button>
+            {filtered.map((acc) => (
+              <Card key={acc.id}
+                className={`bg-gray-900 shadow-none transition-colors ${selected.has(acc.id) ? "border-blue-600" : "border-gray-800"}`}>
+                <div className="flex items-start gap-3">
+                  <Checkbox checked={selected.has(acc.id)} onChange={() => toggleSelect(acc.id)} className="mt-0.5 flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="font-mono text-xs text-gray-200 truncate">{acc.email}</p>
+                    <div className="flex flex-wrap items-center gap-2 mt-1.5">
+                      <Badge color={providerColor[acc.provider] ?? "gray"} size="xs">{acc.provider}</Badge>
+                      <Badge color={acc.auth_type === "oauth2" ? "success" : acc.auth_type === "app_password" ? "warning" : "gray"} size="xs">
+                        {acc.auth_type === "oauth2" ? "OAuth2 ✓" : acc.auth_type === "app_password" ? "App-PW" : "Passwort"}
+                      </Badge>
+                      <Badge color={acc.active ? "success" : "gray"} size="xs">{acc.active ? "Aktiv" : "Inaktiv"}</Badge>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2 mt-2">
+                      <Button size="xs" color="gray" onClick={() => testConnection(acc.id)} disabled={testingId === acc.id}>
+                        {testingId === acc.id ? <Spinner size="xs" /> : "Verbindung testen"}
+                      </Button>
                       {testResult[acc.id] && (
-                        <span className={testResult[acc.id].smtp && testResult[acc.id].imap ? "text-green-400" : "text-red-400"}>
-                          S:{testResult[acc.id].smtp ? "✓" : "✗"} I:{testResult[acc.id].imap ? "✓" : "✗"}
+                        <span className={`text-xs ${testResult[acc.id].smtp && testResult[acc.id].imap ? "text-green-400" : "text-red-400"}`}>
+                          SMTP:{testResult[acc.id].smtp ? "✓" : "✗"} IMAP:{testResult[acc.id].imap ? "✓" : "✗"}
                         </span>
                       )}
                       {acc.provider === "outlook" && acc.auth_type !== "oauth2" && (
-                        <button onClick={() => fetchSingleOAuth2(acc.id)} className="text-yellow-400 hover:text-yellow-300">
-                          →OAuth2
-                        </button>
+                        <Button size="xs" color="warning" onClick={() => fetchSingleOAuth2(acc.id)}>→ OAuth2</Button>
                       )}
                     </div>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+                  </div>
+                </div>
+              </Card>
+            ))}
+          </div>
+
+          {/* Desktop table */}
+          <div className="hidden md:block overflow-x-auto">
+            <Table className="bg-gray-900 border border-gray-800 rounded-lg overflow-hidden">
+              <TableHead className="bg-gray-800/60">
+                <TableHeadCell className="w-10 px-3">
+                  <Checkbox checked={selected.size === filtered.length && filtered.length > 0} onChange={selectAll} />
+                </TableHeadCell>
+                <TableHeadCell className="text-gray-400">E-Mail</TableHeadCell>
+                <TableHeadCell className="text-gray-400">Anbieter</TableHeadCell>
+                <TableHeadCell className="text-gray-400">Auth</TableHeadCell>
+                <TableHeadCell className="text-gray-400">Status</TableHeadCell>
+                <TableHeadCell className="text-gray-400">Aktionen</TableHeadCell>
+              </TableHead>
+              <TableBody className="divide-y divide-gray-800">
+                {filtered.map((acc) => (
+                  <TableRow key={acc.id} className={`bg-gray-900 hover:bg-gray-800/40 ${selected.has(acc.id) ? "bg-blue-900/10" : ""}`}>
+                    <TableCell className="px-3">
+                      <Checkbox checked={selected.has(acc.id)} onChange={() => toggleSelect(acc.id)} />
+                    </TableCell>
+                    <TableCell className="font-mono text-xs text-gray-300">{acc.email}</TableCell>
+                    <TableCell>
+                      <Badge color={providerColor[acc.provider] ?? "gray"} size="xs">{acc.provider}</Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Badge color={acc.auth_type === "oauth2" ? "success" : acc.auth_type === "app_password" ? "warning" : "gray"} size="xs">
+                        {acc.auth_type === "oauth2" ? "OAuth2 ✓" : acc.auth_type === "app_password" ? "App-PW" : "Passwort"}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Badge color={acc.active ? "success" : "gray"} size="xs">{acc.active ? "Aktiv" : "Inaktiv"}</Badge>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <Button size="xs" color="gray" onClick={() => testConnection(acc.id)} disabled={testingId === acc.id}>
+                          {testingId === acc.id ? <Spinner size="xs" /> : "Test"}
+                        </Button>
+                        {testResult[acc.id] && (
+                          <span className={`text-xs ${testResult[acc.id].smtp && testResult[acc.id].imap ? "text-green-400" : "text-red-400"}`}>
+                            S:{testResult[acc.id].smtp ? "✓" : "✗"} I:{testResult[acc.id].imap ? "✓" : "✗"}
+                          </span>
+                        )}
+                        {acc.provider === "outlook" && acc.auth_type !== "oauth2" && (
+                          <Button size="xs" color="warning" onClick={() => fetchSingleOAuth2(acc.id)}>→OAuth2</Button>
+                        )}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </>
+      )}
+
+      {/* Add Account Modal */}
+      <Modal show={showAddModal} onClose={() => { setShowAddModal(false); setAddError(""); }}
+        className="bg-gray-950/80">
+        <ModalHeader className="bg-gray-900 border-gray-800 text-gray-100">Account hinzufügen</ModalHeader>
+        <ModalBody className="bg-gray-900 border-gray-800">
+          <form onSubmit={addSingle} className="space-y-4">
+            <div>
+              <Label htmlFor="add-email" className="text-gray-300" >E-Mail</Label>
+              <TextInput
+                id="add-email"
+                type="email"
+                required
+                placeholder="name@example.com"
+                value={newAcc.email}
+                onChange={(e) => setNewAcc({ ...newAcc, email: e.target.value })}
+                className="mt-1"
+                theme={{ field: { input: { base: "block w-full border", colors: { gray: "bg-gray-800 border-gray-700 text-gray-100 focus:border-blue-500 focus:ring-blue-500" } } } }}
+              />
+            </div>
+            <div>
+              <Label htmlFor="add-pw" className="text-gray-300" >Passwort / App-Passwort</Label>
+              <TextInput
+                id="add-pw"
+                type="password"
+                placeholder="••••••••"
+                value={newAcc.password}
+                onChange={(e) => setNewAcc({ ...newAcc, password: e.target.value })}
+                className="mt-1"
+                theme={{ field: { input: { base: "block w-full border", colors: { gray: "bg-gray-800 border-gray-700 text-gray-100 focus:border-blue-500 focus:ring-blue-500" } } } }}
+              />
+            </div>
+            <div>
+              <Label htmlFor="add-provider" className="text-gray-300" >Anbieter</Label>
+              <Select
+                id="add-provider"
+                value={newAcc.provider}
+                onChange={(e) => setNewAcc({ ...newAcc, provider: e.target.value })}
+                className="mt-1"
+                theme={{ field: { select: { base: "block w-full border disabled:cursor-not-allowed disabled:opacity-50", colors: { gray: "bg-gray-800 border-gray-700 text-gray-100 focus:border-blue-500 focus:ring-blue-500" } } } }}
+              >
+                <option value="outlook">Outlook</option>
+                <option value="gmail">Gmail</option>
+                <option value="firstmail">Firstmail</option>
+                <option value="custom">Custom</option>
+              </Select>
+            </div>
+            {addError && <Alert color="failure">{addError}</Alert>}
+            <div className="flex gap-2 justify-end">
+              <Button color="gray" onClick={() => { setShowAddModal(false); setAddError(""); }}>Abbrechen</Button>
+              <Button type="submit" color="blue"> Hinzufügen</Button>
+            </div>
+          </form>
+        </ModalBody>
+      </Modal>
     </Layout>
   );
 }

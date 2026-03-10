@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { useRouter } from "next/router";
-import { ReactNode, useState } from "react";
+import { ReactNode } from "react";
+import { Navbar, NavbarBrand, NavbarCollapse, NavbarToggle } from "flowbite-react";
 
 const navItems = [
   { href: "/", label: "Dashboard" },
@@ -12,7 +13,6 @@ const navItems = [
 
 export default function Layout({ children }: { children: ReactNode }) {
   const router = useRouter();
-  const [menuOpen, setMenuOpen] = useState(false);
 
   const handleLogout = () => {
     localStorage.removeItem("token");
@@ -20,73 +20,42 @@ export default function Layout({ children }: { children: ReactNode }) {
   };
 
   return (
-    <div className="min-h-screen flex flex-col">
-      <nav className="bg-gray-900 border-b border-gray-800 px-4 py-3">
-        <div className="flex items-center justify-between">
-          <span className="font-bold text-blue-400 text-lg">Domain Warming</span>
+    <div className="min-h-screen flex flex-col bg-gray-950">
+      <Navbar fluid className="bg-gray-900 border-b border-gray-800 px-4">
+        <NavbarBrand as="span">
+          <span className="font-bold text-blue-400 text-lg cursor-pointer" onClick={() => router.push("/")}>
+            Domain Warming
+          </span>
+        </NavbarBrand>
 
-          {/* Desktop Nav */}
-          <div className="hidden md:flex items-center gap-6">
-            {navItems.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`text-sm font-medium transition-colors ${
-                  router.pathname === item.href
-                    ? "text-blue-400"
-                    : "text-gray-400 hover:text-gray-100"
-                }`}
-              >
-                {item.label}
-              </Link>
-            ))}
-            <button
-              onClick={handleLogout}
-              className="text-xs text-gray-500 hover:text-gray-300 transition-colors"
-            >
-              Abmelden
-            </button>
-          </div>
-
-          {/* Mobile hamburger */}
+        <div className="flex items-center gap-2 md:order-2">
           <button
-            className="md:hidden flex flex-col gap-1.5 p-1"
-            onClick={() => setMenuOpen(!menuOpen)}
-            aria-label="Menü"
+            onClick={handleLogout}
+            className="text-xs text-gray-500 hover:text-gray-300 transition-colors px-2 py-1"
           >
-            <span className={`block w-6 h-0.5 bg-gray-400 transition-transform ${menuOpen ? "rotate-45 translate-y-2" : ""}`} />
-            <span className={`block w-6 h-0.5 bg-gray-400 transition-opacity ${menuOpen ? "opacity-0" : ""}`} />
-            <span className={`block w-6 h-0.5 bg-gray-400 transition-transform ${menuOpen ? "-rotate-45 -translate-y-2" : ""}`} />
+            Abmelden
           </button>
+          <NavbarToggle className="text-gray-400 hover:bg-gray-800 focus:ring-gray-700" />
         </div>
 
-        {/* Mobile menu */}
-        {menuOpen && (
-          <div className="md:hidden mt-3 pt-3 border-t border-gray-800 flex flex-col gap-1">
-            {navItems.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                onClick={() => setMenuOpen(false)}
-                className={`px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                  router.pathname === item.href
-                    ? "bg-blue-900/40 text-blue-400"
-                    : "text-gray-400 hover:bg-gray-800 hover:text-gray-100"
-                }`}
-              >
-                {item.label}
-              </Link>
-            ))}
-            <button
-              onClick={handleLogout}
-              className="px-3 py-2.5 text-left text-sm text-red-400 hover:bg-gray-800 rounded-lg"
+        <NavbarCollapse>
+          {navItems.map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={`block py-2 px-3 rounded-md text-sm font-medium transition-colors md:px-2 ${
+                router.pathname === item.href
+                  ? "text-blue-400 bg-blue-900/20"
+                  : "text-gray-400 hover:text-gray-100 hover:bg-gray-800"
+              }`}
             >
-              Abmelden
-            </button>
-          </div>
-        )}
-      </nav>
-      <main className="flex-1 p-4 md:p-6">{children}</main>
+              {item.label}
+            </Link>
+          ))}
+        </NavbarCollapse>
+      </Navbar>
+
+      <main className="flex-1 p-4 md:p-6 max-w-7xl mx-auto w-full">{children}</main>
     </div>
   );
 }
